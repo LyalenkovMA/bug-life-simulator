@@ -1,0 +1,90 @@
+﻿# ===========================================
+# Visual Studio и .NET Core
+# ===========================================
+.vs/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+TestResults/
+[Tt]est[Rr]esult*/
+_ReSharper*/
+*.ncrunchproject
+*.ncrunchsolution
+
+# ===========================================
+# MonoGame специфика
+# ===========================================
+*.mgcb
+*.mgcontent
+*.pdb
+*.ilk
+*.cache
+*.lock.json
+Content/bin/
+Content/obj/
+*.xnb
+
+# ===========================================
+# NuGet пакеты
+# ===========================================
+packages/
+*.nupkg
+.nuget/
+NuGet.exe
+project.lock.json
+
+# ===========================================
+# Временные файлы и логи
+# ===========================================
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+*.pid
+*.seed
+*.pid.lock
+
+# ===========================================
+# Системные файлы
+# ===========================================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+
+# ===========================================
+# Другие редакторы
+# ===========================================
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+.idea/
+*.sln.iml
+
+# ===========================================
+# Специфичные для проекта
+# ===========================================
+# Конфигурационные файлы (если содержат секреты)
+appsettings.Development.json
+appsettings.Local.json
+
+# Сгенерированные файлы документации
+docs/_site/
+docs/api/
+
+# Файлы запуска/остановки
+run/
+stop/

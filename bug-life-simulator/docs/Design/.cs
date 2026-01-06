@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace bug-life-simulator.Content.Audio
+namespace TalesFromTheUnderbrush
 {
     internal class _
 {

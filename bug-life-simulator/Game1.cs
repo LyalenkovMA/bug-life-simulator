@@ -2,7 +2,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
-namespace bug_life_simulator
+namespace TalesFromTheUnderbrush
 {
     public class Game1 : Game
     {

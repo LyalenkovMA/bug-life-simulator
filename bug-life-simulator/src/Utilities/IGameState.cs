@@ -1,5 +1,4 @@
 ﻿using Microsoft.Xna.Framework;
-using TalesFromTheUnderbrush.src.GameLogic;
 
 namespace TalesFromTheUnderbrush
 {
@@ -10,6 +9,6 @@ namespace TalesFromTheUnderbrush
         void Draw(GameTime gameTime);
         void OnEnter();
         void OnExit();
-        GameState? GetNextState(); // Возвращает следующее состояние или null
+        GameStateType? GetNextState(); // Возвращает следующее состояние или null
     }
 }

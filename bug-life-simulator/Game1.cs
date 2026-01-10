@@ -7,36 +7,45 @@ namespace TalesFromTheUnderbrush
     public class Game1 : Game
     {
         private GraphicsDeviceManager _graphics;
-        private SpriteBatch _spriteBatch;
+        private GameManager _gameManager;
 
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
+
+            // Настройка графики
+            _graphics.PreferredBackBufferWidth = 1280;
+            _graphics.PreferredBackBufferHeight = 720;
+            _graphics.SynchronizeWithVerticalRetrace = true; // VSync включен
         }
 
         protected override void Initialize()
         {
-            GlobalSettings.Content = Content;
-            GlobalSettings.SpriteManager = new SpriteBatch(GraphicsDevice);
+            // Инициализация глобальных сервисов (через GlobalSettings)
+            GlobalSettings.Initialize(Content, GraphicsDevice);
+
+            // Создание менеджера игры
+            _gameManager = new GameManager();
 
             base.Initialize();
         }
 
         protected override void LoadContent()
         {
-            _spriteBatch = new SpriteBatch(GraphicsDevice);
-
-            // TODO: use this.Content to load your game content here
+            // Загрузка контента через GameManager
+            _gameManager.LoadContent();
         }
 
         protected override void Update(GameTime gameTime)
         {
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+            // Выход по Escape
+            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            // TODO: Add your update logic here
+            // Обновление игры через GameManager
+            _gameManager.Update(gameTime);
 
             base.Update(gameTime);
         }
@@ -45,9 +54,20 @@ namespace TalesFromTheUnderbrush
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            // TODO: Add your drawing code here
+            // Отрисовка через GameManager
+            _gameManager.Draw(gameTime);
 
             base.Draw(gameTime);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _gameManager?.Dispose();
+                GlobalSettings.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

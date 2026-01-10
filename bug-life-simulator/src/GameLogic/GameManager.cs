@@ -1,11 +1,12 @@
 ﻿using Microsoft.Xna.Framework;
+using TalesFromTheUnderbrush;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 
-namespace TalesFromTheUnderbrush.src.GameLogic
+namespace TalesFromTheUnderbrush
 {
-    public enum GameState
+    public enum GameStateType
     {
         MainMenu,
         Playing,
@@ -16,8 +17,8 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
     public class GameManager : IDisposable
     {
-        private GameState _currentState;
-        private readonly Dictionary<GameState, IGameState> _states;
+        private GameStateType _currentState;
+        private readonly Dictionary<GameStateType, IGameState> _states;
 
         // Разные состояния игры
         //private MainMenuState _mainMenu;
@@ -26,8 +27,8 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
         public GameManager()
         {
-            _states = new Dictionary<GameState, IGameState>();
-            _currentState = GameState.MainMenu;
+            _states = new Dictionary<GameStateType, IGameState>();
+            _currentState = GameStateType.MainMenu;
 
             InitializeStates();
         }
@@ -38,9 +39,9 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             //_playingState = new PlayingState();
             //_pauseState = new PauseState();
 
-            _states[GameState.MainMenu] = _mainMenu;
-            _states[GameState.Playing] = _playingState;
-            _states[GameState.Paused] = _pauseState;
+            //_states[GameState.MainMenu] = _mainMenu;
+            //_states[GameState.Playing] = _playingState;
+            //_states[GameState.Paused] = _pauseState;
         }
 
         public void LoadContent()
@@ -77,10 +78,10 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             }
 
             // Финализация отрисовки кадра
-            GlobalServices.Renderer.Flush();
+            GlobalSettings.Renderer.Flush();
         }
 
-        public void ChangeState(GameState newState)
+        public void ChangeState(GameStateType newState)
         {
             // Уведомление о выходе из старого состояния
             if (_states.TryGetValue(_currentState, out var oldState))

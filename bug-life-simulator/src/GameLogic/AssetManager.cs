@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace TalesFromTheUnderbrush.src.GameLogic
+namespace TalesFromTheUnderbrush
 {
     public class AssetManager : IDisposable
     {

@@ -35,6 +35,7 @@ namespace TalesFromTheUnderbrush
 
         private void InitializeStates()
         {
+            _states[GameStateType.MainMenu] = new TestState();
             //_mainMenu = new MainMenuState();
             //_playingState = new PlayingState();
             //_pauseState = new PauseState();

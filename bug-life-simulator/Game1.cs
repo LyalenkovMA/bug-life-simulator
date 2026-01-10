@@ -18,7 +18,8 @@ namespace TalesFromTheUnderbrush
 
         protected override void Initialize()
         {
-            // TODO: Add your initialization logic here
+            GlobalSettings.Content = Content;
+            GlobalSettings.SpriteManager = new SpriteBatch(GraphicsDevice);
 
             base.Initialize();
         }

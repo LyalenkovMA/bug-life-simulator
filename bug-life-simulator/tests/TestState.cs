@@ -1,6 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 
-namespace TalesFromTheUnderbrush
+namespace TalesFromTheUnderbrush.tests
 {
     public class TestState : IGameState
     {

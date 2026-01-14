@@ -121,12 +121,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public virtual CollisionShape CollisionShape => CollisionShape.Box;
         public virtual CollisionLayer CollisionLayer => CollisionLayer.Terrain;
 
-        public CollisionLayer CollidesWith => throw new NotImplementedException();
-
-        public bool IsTrigger => throw new NotImplementedException();
-
-        public bool IsPassable => throw new NotImplementedException();
-
         public virtual bool CheckCollision(ICollidable other)
         {
             // Простая AABB проверка
@@ -175,16 +169,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
                 return;
 
             // Базовая реализация будет в наследниках
-        }
-
-        public CollisionBounds GetCollisionBounds()
-        {
-            throw new NotImplementedException();
-        }
-
-        public void OnCollision(CollisionInfo collision)
-        {
-            throw new NotImplementedException();
         }
     }
 }

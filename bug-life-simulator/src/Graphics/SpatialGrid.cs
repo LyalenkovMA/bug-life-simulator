@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using Point = Microsoft.Xna.Framework.Point;
 
 namespace TalesFromTheUnderbrush.src
 {
@@ -15,7 +16,7 @@ namespace TalesFromTheUnderbrush.src
         private readonly int _cellsX;
         private readonly int _cellsY;
         private readonly List<T>[,] _grid;
-        private readonly Dictionary<T, List<Microsoft.Xna.Framework.Point>> _objectCells = new();
+        private readonly Dictionary<T, List<Point>> _objectCells = new();
 
         public int Count { get; private set; }
 
@@ -69,7 +70,7 @@ namespace TalesFromTheUnderbrush.src
             if (obj == null || !_objectCells.TryGetValue(obj, out var cells))
                 return false;
 
-            foreach (var cell in cells)
+            foreach (Point cell in cells)
             {
                 if (IsValidCell(cell))
                 {
@@ -146,27 +147,27 @@ namespace TalesFromTheUnderbrush.src
             Count = 0;
         }
 
-        private List<Microsoft.Xna.Framework.Point> GetCellsForBounds(RectangleF bounds)
+        private List<Point> GetCellsForBounds(RectangleF bounds)
         {
             int startX = Math.Max(0, (int)(bounds.Left / _cellSize));
             int endX = Math.Min(_cellsX - 1, (int)(bounds.Right / _cellSize));
             int startY = Math.Max(0, (int)(bounds.Top / _cellSize));
             int endY = Math.Min(_cellsY - 1, (int)(bounds.Bottom / _cellSize));
 
-            var cells = new List<Microsoft.Xna.Framework.Point>();
+            List<Point> cells = new List<Point>();
 
             for (int y = startY; y <= endY; y++)
             {
                 for (int x = startX; x <= endX; x++)
                 {
-                    cells.Add(new Microsoft.Xna.Framework.Point(x, y));
+                    cells.Add(new Point(x, y));
                 }
             }
 
             return cells;
         }
 
-        private bool IsValidCell(Microsoft.Xna.Framework.Point cell)
+        private bool IsValidCell(Point cell)
         {
             return cell.X >= 0 && cell.X < _cellsX &&
                    cell.Y >= 0 && cell.Y < _cellsY;

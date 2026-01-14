@@ -18,7 +18,6 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public int Width { get; private set; }
         public int Height { get; private set; }
         public int MaxLayers { get; private set; }
-
         public float TileWidth { get; private set; }
         public float TileHeight { get; private set; }
 

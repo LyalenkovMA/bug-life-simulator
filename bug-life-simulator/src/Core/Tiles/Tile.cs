@@ -252,22 +252,7 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
         Snow,
         Fungus,
         Special
-    }
-
-    public static class TileIdGenerator
-    {
-        private static ulong _nextId = 1;
-
-        public static ulong Next()
-        {
-            return _nextId++;
-        }
-
-        public static void Reset()
-        {
-            _nextId = 1;
-        }
-    }
+    }  
 
     public struct Size
     {

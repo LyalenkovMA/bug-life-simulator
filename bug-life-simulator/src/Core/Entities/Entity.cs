@@ -260,7 +260,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         // === Для отладки ===
         public override string ToString()
         {
-            var worldPos = GetWorldPosition();
+            Vector2 worldPos = GetWorldPosition();
             return $"{GetType().Name} '{Name}' ({worldPos.X:F1}, {worldPos.Y:F1}, {GetWorldHeight():F1})";
         }
     }

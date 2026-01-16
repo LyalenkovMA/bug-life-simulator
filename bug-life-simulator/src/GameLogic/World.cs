@@ -288,11 +288,11 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         /// <summary>
         /// Получить сущность по ID
         /// </summary>
-        public Entity GetEntity(ulong id)
-        {
-            // TODO: Можно добавить Dictionary для быстрого поиска по ID
-            return _spatialGrid.FirstOrDefault(e => e.Id == id);
-        }
+        //public Entity GetEntity(ulong id)
+        //{
+        //    // TODO: Можно добавить Dictionary для быстрого поиска по ID
+        //    return _spatialGrid.FirstOrDefault(e => e.Id == id);
+        //}
 
         // === Поиск сущностей ===
 

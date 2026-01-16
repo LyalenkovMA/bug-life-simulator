@@ -36,7 +36,7 @@ namespace TalesFromTheUnderbrush
             if (string.IsNullOrEmpty(assetPath))
                 throw new ArgumentException("Asset path cannot be null or empty", nameof(assetPath));
 
-            var typeDict = GetTypeDictionary<T>();
+            Dictionary<string, object> typeDict = GetTypeDictionary<T>();
 
             // Проверяем кэш
             if (typeDict.TryGetValue(assetPath, out var cachedAsset))
@@ -56,7 +56,7 @@ namespace TalesFromTheUnderbrush
         // Удаление из кэша
         public void Unload<T>(string assetPath) where T : class
         {
-            var typeDict = GetTypeDictionary<T>();
+            Dictionary<string, object> typeDict = GetTypeDictionary<T>();
             typeDict.Remove(assetPath);
         }
 

@@ -198,7 +198,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
 
         public bool IsInView(Camera camera)
         {
-            var bounds = GetBounds();
+            RectangleF bounds = GetBounds();
             return camera.Bounds.Intersects(bounds);
         }
 
@@ -233,7 +233,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             SetVisible(false);
 
             // Очищаем детей
-            foreach (var child in Children.ToArray())
+            foreach (Entity child in Children.ToArray())
                 child.Dispose();
             Children.Clear();
 

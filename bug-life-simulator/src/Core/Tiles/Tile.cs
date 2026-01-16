@@ -31,8 +31,8 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
 
         // === Графические данные ===
         public Rectangle SourceRect { get; protected set; }
-        public Color Color { get; set; } = Color.White;
-        public float Rotation { get; set; }
+        public Color Color { get;private set; } = Color.White;
+        public float Rotation { get;private set; }
 
         // === Свойства для геймплея ===
         public bool IsWalkable { get; protected set; } = true;

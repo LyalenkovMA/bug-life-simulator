@@ -133,7 +133,7 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
 
         public List<Tile> GetTilesInArea(RectangleF area, int minLayer = 0, int maxLayer = int.MaxValue)
         {
-            var result = new List<Tile>();
+            List<Tile> result = new List<Tile>();
 
             // Конвертируем мировые координаты в грид
             int startX = Math.Max(0, (int)(area.Left / Tile.TileSize.Width));
@@ -208,7 +208,7 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
             if (layer == 0)
                 return true; // Земля всегда имеет поддержку
 
-            var below = GetTile(x, y, layer - 1);
+            Tile below = GetTile(x, y, layer - 1);
             return below != null && below.IsSolid;
         }
 
@@ -251,7 +251,7 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
             _spatialGrid.Add(tile, bounds);
 
             // Добавляем в чанк
-            var chunkPos = GetChunkPosition(tile.GridPosition);
+            Point chunkPos = GetChunkPosition(tile.GridPosition);
             if (_chunks.TryGetValue(chunkPos, out var chunk))
             {
                 chunk.AddTile(tile);
@@ -337,7 +337,7 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
             {
                 for (int x = 0; x < chunksX; x++)
                 {
-                    var chunkPos = new Point(x, y);
+                    Point chunkPos = new Point(x, y);
                     _chunks[chunkPos] = new TileChunk(chunkPos, CHUNK_SIZE);
                 }
             }
@@ -350,7 +350,7 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
 
         private void MarkChunkDirty(int gridX, int gridY)
         {
-            var chunkPos = GetChunkPosition(new Point(gridX, gridY));
+            Point chunkPos = GetChunkPosition(new Point(gridX, gridY));
             if (_chunks.TryGetValue(chunkPos, out var chunk))
             {
                 chunk.IsDirty = true;
@@ -368,7 +368,7 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
                 {
                     for (int x = 0; x < Width; x++)
                     {
-                        var tile = _tiles[x, y, z];
+                        Tile tile = _tiles[x, y, z];
                         if (tile != null)
                         {
                             RemoveTileInternal(tile);
@@ -396,62 +396,5 @@ namespace TalesFromTheUnderbrush.src.Core.Tiles
             _spatialGrid.Clear();
             _chunks.Clear();
         }
-    }
-
-    /// <summary>
-    /// Чанк тайлов для оптимизации рендеринга
-    /// </summary>
-    public class TileChunk
-    {
-        public Point Position { get; }
-        public int Size { get; }
-        public bool IsDirty { get; set; } = true;
-        public bool IsVisible { get; set; } = true;
-
-        private readonly List<Tile> _tiles = new();
-
-        public TileChunk(Point position, int size)
-        {
-            Position = position;
-            Size = size;
-        }
-
-        public void AddTile(Tile tile)
-        {
-            if (!_tiles.Contains(tile))
-            {
-                _tiles.Add(tile);
-                IsDirty = true;
-            }
-        }
-
-        public void RemoveTile(Tile tile)
-        {
-            if (_tiles.Remove(tile))
-            {
-                IsDirty = true;
-            }
-        }
-
-        public void Clear()
-        {
-            _tiles.Clear();
-            IsDirty = true;
-        }
-
-        public List<Tile> GetTiles()
-        {
-            return new List<Tile>(_tiles);
-        }
-
-        public Rectangle GetBounds()
-        {
-            int worldX = Position.X * Size * Tile.TileSize.Width;
-            int worldY = Position.Y * Size * Tile.TileSize.Height;
-            int worldWidth = Size * Tile.TileSize.Width;
-            int worldHeight = Size * Tile.TileSize.Height;
-
-            return new Rectangle(worldX, worldY, worldWidth, worldHeight);
-        }
-    }
+    }   
 }

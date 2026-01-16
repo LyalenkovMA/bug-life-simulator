@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 
 namespace TalesFromTheUnderbrush.src.Core.Entities
 {
@@ -90,26 +91,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             // Базовый расчет глубины: чем выше объект, тем позже рисуется
             SetDrawDepth(0.5f + (GetWorldHeight() * 0.05f));
         }
-
-        // Переопределяем SetVisible чтобы синхронизировать с интерфейсом
-        public new void SetVisible(bool visible)
-        {
-            base.SetVisible(visible);
-            this.Visible = visible;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                // Очищаем события интерфейсов
-                UpdateOrderChanged = null;
-                DrawDepthChanged = null;
-                VisibleChanged = null;
-            }
-
-            base.Dispose(disposing);
-        }
     }
 
     /// <summary>
@@ -121,13 +102,23 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public virtual CollisionShape CollisionShape => CollisionShape.Box;
         public virtual CollisionLayer CollisionLayer => CollisionLayer.Terrain;
 
+        public abstract CollisionLayer CollidesWith { get; }
+        public abstract bool IsTrigger { get; }
+        public abstract bool IsPassable { get; }
+        public abstract string PersistentId { get; }
+        public abstract string PersistentType { get; }
+        public abstract bool ShouldSave { get; }
+
+        public abstract event Action<IPersistable> OnBeforeSave;
+        public abstract event Action<IPersistable> OnAfterLoad;
+
         public virtual bool CheckCollision(ICollidable other)
         {
             // Простая AABB проверка
-            var myBounds = GetBounds();
-            var otherBounds = other is Entity entity ? entity.GetBounds() : default;
+            RectangleF myBounds = GetBounds();
+            RectangleF otherBounds = other is Entity entity ? entity.GetBounds() : default;
 
-            return myBounds.Intersects(otherBounds);
+            return myBounds.Contains(otherBounds);
         }
 
         public virtual void OnCollision(ICollidable other, Vector2 penetration)
@@ -170,5 +161,15 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
 
             // Базовая реализация будет в наследниках
         }
+
+        public abstract CollisionBounds GetCollisionBounds();
+        public abstract void OnCollision(CollisionInfo collision);
+
+        PersistenceData IPersistable.Save()
+        {
+            throw new NotImplementedException();
+        }
+
+        public abstract void Load(PersistenceData data);
     }
 }

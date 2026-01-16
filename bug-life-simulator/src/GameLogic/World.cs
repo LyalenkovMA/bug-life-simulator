@@ -248,7 +248,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             // Если это тайл - удаляем из грида
             if (IsTileEntity(entity))
             {
-                var position = entity.Position;
+                Vector2 position = entity.Position;
                 int x = (int)position.X;
                 int y = (int)position.Y;
                 int z = (int)entity.Height;

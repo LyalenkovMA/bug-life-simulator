@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
 using TalesFromTheUnderbrush.src.Core.Tiles;
+using TalesFromTheUnderbrush.src.Graphics;
 using TalesFromTheUnderbrush.src.Graphics.Tiles;
 using TalesFromTheUnderbrush.src.UI.Camera;
 using Color = Microsoft.Xna.Framework.Color;

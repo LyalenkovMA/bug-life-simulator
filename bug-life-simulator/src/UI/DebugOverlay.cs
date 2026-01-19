@@ -7,7 +7,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TalesFromTheUnderbrush.src.GameLogic;
+using TalesFromTheUnderbrush.src.Graphics;
 using TalesFromTheUnderbrush.src.UI.Camera;
+using IDrawable = Microsoft.Xna.Framework.IDrawable;
 
 namespace TalesFromTheUnderbrush.src.UI
 {
@@ -22,10 +24,26 @@ namespace TalesFromTheUnderbrush.src.UI
 
         public event EventHandler DrawDepthChanged;
         public event EventHandler VisibleChanged;
+        public event EventHandler<EventArgs> DrawOrderChanged;
 
         public float DrawDepth => throw new NotImplementedException();
 
         public bool Visible => throw new NotImplementedException();
+
+        public int DrawOrder => throw new NotImplementedException();
+
+        event EventHandler<EventArgs> IDrawable.VisibleChanged
+        {
+            add
+            {
+                throw new NotImplementedException();
+            }
+
+            remove
+            {
+                throw new NotImplementedException();
+            }
+        }
 
         public void Initialize(SpriteFont font, ICamera camera, World world)
         {
@@ -126,6 +144,11 @@ namespace TalesFromTheUnderbrush.src.UI
         }
 
         public void SetVisible(bool visible)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Draw(GameTime gameTime)
         {
             throw new NotImplementedException();
         }

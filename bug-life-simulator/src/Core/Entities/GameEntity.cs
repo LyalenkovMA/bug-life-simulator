@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using TalesFromTheUnderbrush.src.Graphics;
 
 namespace TalesFromTheUnderbrush.src.Core.Entities
 {

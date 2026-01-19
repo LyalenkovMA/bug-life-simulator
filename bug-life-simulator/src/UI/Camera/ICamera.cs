@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using TalesFromTheUnderbrush.src.Graphics;
 
 namespace TalesFromTheUnderbrush.src.UI.Camera
 {

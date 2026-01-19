@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace TalesFromTheUnderbrush
+namespace TalesFromTheUnderbrush.src.Graphics
 {
     public class RenderManager : IDisposable
     {

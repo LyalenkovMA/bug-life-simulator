@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 
 
-namespace TalesFromTheUnderbrush
+namespace TalesFromTheUnderbrush.src.Graphics
 {
     /// <summary>
     /// Интерфейс для объектов, которые рисуются

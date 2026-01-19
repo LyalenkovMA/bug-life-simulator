@@ -1,614 +1,592 @@
 ﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
 using TalesFromTheUnderbrush.src.Graphics.Tiles;
+using TalesFromTheUnderbrush.src.UI.Camera;
 using Color = Microsoft.Xna.Framework.Color;
 using Point = Microsoft.Xna.Framework.Point;
 
-namespace TalesFromTheUnderbrush.src
+namespace TalesFromTheUnderbrush.src.GameLogic
 {
     /// <summary>
-    /// Игровой мир - содержит грид тайлов и управляет сущностями
+    /// Основной класс мира, управляющий тайлами и сущностями
     /// </summary>
-    public class World : IDisposable
+    public class World : IUpdatable, IDrawable, IPersistable
     {
-        // === Размеры мира ===
-        public int Width { get; private set; }
-        public int Height { get; private set; }
-        public int MaxLayers { get; private set; }
-        public float TileWidth { get; private set; }
-        public float TileHeight { get; private set; }
+        // === ПОЛЯ ===
+        private readonly TileGrid _tileGrid;
+        private readonly SpatialGrid<Entity> _spatialGrid;
+        private readonly List<GameEntity> _gameEntities;
+        private readonly List<StaticEntity> _staticEntities;
 
-        private TileGrid _tileGrid;
-        private SpatialGrid<Entity> _spatialGrid;
+        private readonly Random _random;
+        private WorldState _worldState;
 
-        // === Карта высот (быстрый доступ к верхнему тайлу) ===
-        private int[,] _heightMap;
+        public event EventHandler UpdateOrderChanged;
+        public event EventHandler DrawDepthChanged;
+        public event EventHandler VisibleChanged;
+        public event Action<IPersistable> OnBeforeSave;
+        public event Action<IPersistable> OnAfterLoad;
 
-        // === Чанковая система ===
-        private const int CHUNK_SIZE = 16;
-        private readonly Dictionary<Point, WorldChunk> _chunks;
+        // === СВОЙСТВА ===
+        public string Name { get; private set; }
+        public int Width => _tileGrid?.Width ?? 0;
+        public int Height => _tileGrid?.Height ?? 0;
+        public int Depth => _tileGrid?.Depth ?? 0;
 
-        // === События ===
-        public event Action<Entity> EntityAdded;
-        public event Action<Entity> EntityRemoved;
-        public event Action<World> WorldChanged;
+        public TileGrid TileGrid => _tileGrid;
+        public SpatialGrid<Entity> SpatialGrid => _spatialGrid;
+        public WorldState State => _worldState;
 
-        // === Статистика ===
-        public int TotalEntities => _spatialGrid.Count;
-        public int TotalTiles { get; private set; }
+        public int UpdateOrder => throw new NotImplementedException();
 
-        // === Конструктор ===
-        public World(int width, int height, int maxLayers = 10, float tileWidth = 1f, float tileHeight = 1f)
+        public float DrawDepth => throw new NotImplementedException();
+
+        public bool Visible => throw new NotImplementedException();
+
+        public string PersistentId => throw new NotImplementedException();
+
+        public string PersistentType => throw new NotImplementedException();
+
+        public bool ShouldSave => throw new NotImplementedException();
+
+        // === КОНСТРУКТОРЫ ===
+
+        /// <summary>
+        /// Создать новый пустой мир
+        /// </summary>
+        public World(string name, int width, int height, int depth = 1)
         {
-            if (width <= 0 || height <= 0 || maxLayers <= 0)
+            if (string.IsNullOrEmpty(name))
+                throw new ArgumentException("World name cannot be empty");
+
+            if (width <= 0 || height <= 0 || depth <= 0)
                 throw new ArgumentException("World dimensions must be positive");
 
-            Width = width;
-            Height = height;
-            MaxLayers = maxLayers;
-            TileWidth = tileWidth;
-            TileHeight = tileHeight;
+            Name = name;
+            _tileGrid = new TileGrid(width, height, depth);
+            _spatialGrid = new SpatialGrid<Entity>(width, height, 64); // Чанки по 64x64
+            _gameEntities = new List<GameEntity>();
+            _staticEntities = new List<StaticEntity>();
+            _random = new Random();
+            _worldState = WorldState.Normal;
 
-            // Инициализируем грид
-            _tileGrid = new TileGrid(width, height, maxLayers);
-            _heightMap = new int[width, height];
-
-            // Инициализируем spatial grid
-            float cellSize = Math.Max(tileWidth, tileHeight) * 2;
-            _spatialGrid = new SpatialGrid<Entity>(width * tileWidth, height * tileHeight, cellSize);
-
-            // Инициализируем чанки
-            _chunks = new Dictionary<Point, WorldChunk>();
-            InitializeChunks();
+            Console.WriteLine($"[World] Создан мир '{name}' размером {width}x{height}x{depth}");
         }
 
-        // === Инициализация чанков ===
-        private void InitializeChunks()
+        /// <summary>
+        /// Создать мир из данных сохранения
+        /// </summary>
+        public World(PersistenceData data)
         {
-            int chunksX = (Width + CHUNK_SIZE - 1) / CHUNK_SIZE;
-            int chunksY = (Height + CHUNK_SIZE - 1) / CHUNK_SIZE;
+            if (data == null)
+                throw new ArgumentNullException(nameof(data));
 
-            for (int y = 0; y < chunksY; y++)
+            // Загружаем из данных сохранения
+            Name = data.GetValue<string>("Name");
+            int width = data.GetValue<int>("Width");
+            int height = data.GetValue<int>("Height");
+            int depth = data.GetValue<int>("Depth", 1);
+
+            _tileGrid = new TileGrid(width, height, depth);
+            _spatialGrid = new SpatialGrid<Entity>(width, height, 64);
+            _gameEntities = new List<GameEntity>();
+            _staticEntities = new List<StaticEntity>();
+            _random = new Random();
+            _worldState = data.GetValue<WorldState>("WorldState", WorldState.Normal);
+
+            // Загружаем тайлы
+            LoadTilesFromData(data);
+
+            Console.WriteLine($"[World] Загружен мир '{Name}' из сохранения");
+        }
+
+        // === ОСНОВНЫЕ МЕТОДЫ ===
+
+        /// <summary>
+        /// Обновление состояния мира
+        /// </summary>
+        public void Update(GameTime gameTime)
+        {
+            if (_worldState == WorldState.Paused)
+                return;
+
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            // Обновляем все игровые сущности
+            for (int i = _gameEntities.Count - 1; i >= 0; i--)
             {
-                for (int x = 0; x < chunksX; x++)
+                var entity = _gameEntities[i];
+
+                if (entity.IsActive)
                 {
-                    var chunkPos = new Point(x, y);
-                    _chunks[chunkPos] = new WorldChunk(chunkPos, CHUNK_SIZE);
-                }
-            }
-        }
+                    entity.Update(gameTime);
 
-        // === Работа с тайлами ===
-
-        /// <summary>
-        /// Получить тайл по координатам
-        /// </summary>
-        public Entity GetTile(int x, int y, int z)
-        {
-            if (!IsInBounds(x, y, z))
-                return null;
-
-            return _tileGrid[x, y, z];
-        }
-
-        /// <summary>
-        /// Получить верхний тайл в клетке
-        /// </summary>
-        public Entity GetTopTile(int x, int y)
-        {
-            if (!IsInBounds(x, y))
-                return null;
-
-            int height = _heightMap[x, y];
-            return GetTile(x, y, height);
-        }
-
-        /// <summary>
-        /// Установить тайл
-        /// </summary>
-        public bool SetTile(int x, int y, int z, Entity tile)
-        {
-            if (!IsInBounds(x, y, z))
-                return false;
-
-            // Проверяем, что это действительно тайл
-            if (tile != null && !IsTileEntity(tile))
-                return false;
-
-            // Удаляем старый тайл если есть
-            var oldTile = _tileGrid[x, y, z];
-            if (oldTile != null)
-            {
-                RemoveEntity(oldTile);
-            }
-
-            // Устанавливаем новый тайл
-            _tileGrid[x, y, z] = tile;
-
-            if (tile != null)
-            {
-                // Устанавливаем позицию тайла
-                tile.SetPosition(x, y);
-                tile.SetHeight(z);
-
-                // Добавляем в системы
-                AddEntityInternal(tile);
-
-                // Обновляем карту высот
-                if (z >= _heightMap[x, y])
-                {
-                    _heightMap[x, y] = z;
-                }
-
-                TotalTiles++;
-            }
-
-            // Помечаем чанк как изменённый
-            MarkChunkDirty(x, y);
-
-            WorldChanged?.Invoke(this);
-            return true;
-        }
-
-        /// <summary>
-        /// Создать и добавить тайл
-        /// </summary>
-        public Entity CreateTile(int x, int y, int z, Func<Vector2, float, Entity> tileCreator)
-        {
-            if (!IsInBounds(x, y, z))
-                return null;
-
-            var tile = tileCreator?.Invoke(new Vector2(x, y), z);
-            if (tile == null)
-                return null;
-
-            if (SetTile(x, y, z, tile))
-                return tile;
-
-            return null;
-        }
-
-        /// <summary>
-        /// Удалить тайл
-        /// </summary>
-        public bool RemoveTile(int x, int y, int z)
-        {
-            return SetTile(x, y, z, null);
-        }
-
-        // === Работа с сущностями ===
-
-        /// <summary>
-        /// Добавить сущность в мир
-        /// </summary>
-        public bool AddEntity(Entity entity)
-        {
-            if (entity == null || entity.IsDisposed)
-                return false;
-
-            if (entity.World != null && entity.World != this)
-            {
-                entity.World.RemoveEntity(entity);
-            }
-
-            // Проверяем позицию
-            var position = entity.Position;
-            if (!IsInBounds(position.X, position.Y))
-                return false;
-
-            // Если это тайл - используем специальный метод
-            if (IsTileEntity(entity))
-            {
-                int x = (int)position.X;
-                int y = (int)position.Y;
-                int z = (int)entity.Height;
-
-                return SetTile(x, y, z, entity);
-            }
-
-            // Обычная сущность
-            AddEntityInternal(entity);
-            return true;
-        }
-
-        private void AddEntityInternal(Entity entity)
-        {
-            entity.World = this;
-
-            // Добавляем в spatial grid
-            var bounds = entity.GetBounds();
-            _spatialGrid.Add(entity, bounds);
-
-            // Добавляем в чанк
-            var chunkPos = GetChunkPosition(entity.Position);
-            if (_chunks.TryGetValue(chunkPos, out var chunk))
-            {
-                chunk.AddEntity(entity);
-            }
-
-            // Событие добавления
-            EntityAdded?.Invoke(entity);
-            entity.OnAddedToWorld?.Invoke(entity);
-        }
-
-        /// <summary>
-        /// Удалить сущность из мира
-        /// </summary>
-        public bool RemoveEntity(Entity entity)
-        {
-            if (entity == null || entity.World != this)
-                return false;
-
-            // Если это тайл - удаляем из грида
-            if (IsTileEntity(entity))
-            {
-                Vector2 position = entity.Position;
-                int x = (int)position.X;
-                int y = (int)position.Y;
-                int z = (int)entity.Height;
-
-                if (GetTile(x, y, z) == entity)
-                {
-                    _tileGrid[x, y, z] = null;
-                    TotalTiles--;
-
-                    // Пересчитываем карту высот
-                    if (z == _heightMap[x, y])
+                    // Проверяем, не нужно ли удалить сущность
+                    if (entity.ShouldBeRemoved)
                     {
-                        RecalculateHeightAt(x, y);
+                        RemoveGameEntity(entity);
+                        i--; // Корректируем индекс после удаления
                     }
                 }
             }
 
-            // Удаляем из spatial grid
-            _spatialGrid.Remove(entity);
-
-            // Удаляем из чанка
-            var chunkPos = GetChunkPosition(entity.Position);
-            if (_chunks.TryGetValue(chunkPos, out var chunk))
+            // Обновляем статические сущности (реже)
+            if (gameTime.TotalGameTime.Milliseconds % 100 == 0) // Каждые 100 мс
             {
-                chunk.RemoveEntity(entity);
+                foreach (var entity in _staticEntities)
+                {
+                    if (entity.IsActive)
+                    {
+                        entity.Update(gameTime);
+                    }
+                }
             }
 
-            entity.World = null;
+            // Обновляем SpatialGrid (позиции сущностей)
+            UpdateSpatialGrid();
+        }
 
-            // Событие удаления
-            EntityRemoved?.Invoke(entity);
-            entity.OnRemovedFromWorld?.Invoke(entity);
+        /// <summary>
+        /// Отрисовка мира
+        /// </summary>
+        public void Draw(SpriteBatch spriteBatch)
+        {
+            // Отрисовка тайлов (TileGrid сам управляет отрисовкой)
+            _tileGrid?.Draw(spriteBatch);
 
-            return true;
+            // Отрисовка сущностей
+            foreach (var entity in _gameEntities)
+            {
+                if (entity.IsVisible)
+                {
+                    entity.Draw(spriteBatch);
+                }
+            }
+
+            foreach (var entity in _staticEntities)
+            {
+                if (entity.IsVisible)
+                {
+                    entity.Draw(spriteBatch);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Отрисовка мира с учётом камеры (оптимизированная версия)
+        /// </summary>
+        public void Draw(SpriteBatch spriteBatch, ICamera camera)
+        {
+            if (camera == null)
+            {
+                Draw(spriteBatch);
+                return;
+            }
+
+            // Получаем видимую область через камеру
+            var visibleBounds = GetVisibleBounds(camera);
+
+            // Отрисовываем только видимые тайлы
+            if (_tileGrid != null)
+            {
+                var visibleTiles = _tileGrid.GetTilesInArea(visibleBounds);
+                foreach (var tile in visibleTiles)
+                {
+                    if (tile.IsVisible)
+                    {
+                        tile.Draw(spriteBatch);
+                    }
+                }
+            }
+
+            // Отрисовываем только видимые сущности
+            var visibleEntities = _spatialGrid.GetEntitiesInArea(visibleBounds);
+            foreach (var entity in visibleEntities)
+            {
+                if (entity.IsVisible)
+                {
+                    entity.Draw(spriteBatch);
+                }
+            }
+        }
+
+        // === РАБОТА С СУЩНОСТЯМИ ===
+
+        /// <summary>
+        /// Добавить игровую сущность в мир
+        /// </summary>
+        public void AddGameEntity(GameEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException(nameof(entity));
+
+            _gameEntities.Add(entity);
+            _spatialGrid.Add(entity);
+
+            entity.World = this; // Связываем сущность с миром
+
+            Console.WriteLine($"[World] Добавлена игровая сущность: {entity.Name}");
+        }
+
+        /// <summary>
+        /// Добавить статическую сущность в мир
+        /// </summary>
+        public void AddStaticEntity(StaticEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException(nameof(entity));
+
+            _staticEntities.Add(entity);
+            _spatialGrid.Add(entity);
+
+            entity.World = this;
+
+            Console.WriteLine($"[World] Добавлена статическая сущность: {entity.Name}");
+        }
+
+        /// <summary>
+        /// Удалить игровую сущность из мира
+        /// </summary>
+        public bool RemoveGameEntity(GameEntity entity)
+        {
+            if (entity == null) return false;
+
+            bool removed = _gameEntities.Remove(entity);
+            if (removed)
+            {
+                _spatialGrid.Remove(entity);
+                entity.World = null; // Разрываем связь
+
+                Console.WriteLine($"[World] Удалена игровая сущность: {entity.Name}");
+            }
+
+            return removed;
+        }
+
+        /// <summary>
+        /// Удалить статическую сущность из мира
+        /// </summary>
+        public bool RemoveStaticEntity(StaticEntity entity)
+        {
+            if (entity == null) return false;
+
+            bool removed = _staticEntities.Remove(entity);
+            if (removed)
+            {
+                _spatialGrid.Remove(entity);
+                entity.World = null;
+
+                Console.WriteLine($"[World] Удалена статическая сущность: {entity.Name}");
+            }
+
+            return removed;
         }
 
         /// <summary>
         /// Получить сущность по ID
         /// </summary>
-        //public Entity GetEntity(ulong id)
-        //{
-        //    // TODO: Можно добавить Dictionary для быстрого поиска по ID
-        //    return _spatialGrid.FirstOrDefault(e => e.Id == id);
-        //}
+        public Entity GetEntityById(Guid id)
+        {
+            // Ищем в игровых сущностях
+            var gameEntity = _gameEntities.FirstOrDefault(e => e.Id == id);
+            if (gameEntity != null) return gameEntity;
 
-        // === Поиск сущностей ===
+            // Ищем в статических сущностях
+            var staticEntity = _staticEntities.FirstOrDefault(e => e.Id == id);
+            return staticEntity;
+        }
 
         /// <summary>
         /// Получить все сущности в области
         /// </summary>
-        public List<Entity> GetEntitiesInArea(RectangleF area, Predicate<Entity> filter = null)
+        public List<Entity> GetEntitiesInArea(Rectangle area)
         {
-            var entities = _spatialGrid.Query(area);
+            return _spatialGrid.GetEntitiesInArea(area).ToList();
+        }
 
-            if (filter != null)
+        /// <summary>
+        /// Получить все сущности определённого типа
+        /// </summary>
+        public List<T> GetEntitiesOfType<T>() where T : Entity
+        {
+            var result = new List<T>();
+
+            result.AddRange(_gameEntities.OfType<T>());
+            result.AddRange(_staticEntities.OfType<T>());
+
+            return result;
+        }
+
+        // === РАБОТА С ТАЙЛАМИ ===
+
+        /// <summary>
+        /// Получить тайл по координатам
+        /// </summary>
+        public Tile GetTileAt(int x, int y, int z = 0)
+        {
+            return _tileGrid?.GetTile(x, y, z);
+        }
+
+        /// <summary>
+        /// Установить тайл по координатам
+        /// </summary>
+        public void SetTileAt(int x, int y, int z, Tile tile)
+        {
+            _tileGrid?.SetTile(x, y, z, tile);
+        }
+
+        /// <summary>
+        /// Проверить, можно ли пройти в клетку
+        /// </summary>
+        public bool IsTileWalkable(int x, int y, int z = 0)
+        {
+            var tile = GetTileAt(x, y, z);
+            return tile?.IsWalkable ?? false;
+        }
+
+        /// <summary>
+        /// Получить все тайлы в области
+        /// </summary>
+        public List<Tile> GetTilesInArea(Rectangle area)
+        {
+            return _tileGrid?.GetTilesInArea(area) ?? new List<Tile>();
+        }
+
+        // === СОХРАНЕНИЕ/ЗАГРУЗКА ===
+
+        /// <summary>
+        /// Сохранить состояние мира
+        /// </summary>
+        public PersistenceData Save()
+        {
+            var data = new PersistenceData("World");
+
+            // Основные свойства
+            data.SetValue("Name", Name);
+            data.SetValue("Width", Width);
+            data.SetValue("Height", Height);
+            data.SetValue("Depth", Depth);
+            data.SetValue("WorldState", _worldState);
+
+            // Сохраняем тайлы
+            SaveTilesToData(data);
+
+            // Сохраняем сущности
+            SaveEntitiesToData(data);
+
+            Console.WriteLine($"[World] Мир '{Name}' сохранён");
+            return data;
+        }
+
+        /// <summary>
+        /// Загрузить состояние мира
+        /// </summary>
+        public void Load(PersistenceData data)
+        {
+            if (data == null)
+                throw new ArgumentNullException(nameof(data));
+
+            Name = data.GetValue<string>("Name");
+            _worldState = data.GetValue<WorldState>("WorldState", WorldState.Normal);
+
+            // Загружаем тайлы
+            LoadTilesFromData(data);
+
+            // Загружаем сущности
+            LoadEntitiesFromData(data);
+
+            // Обновляем SpatialGrid
+            UpdateSpatialGrid();
+
+            Console.WriteLine($"[World] Мир '{Name}' загружен");
+        }
+
+        // === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
+
+        private void UpdateSpatialGrid()
+        {
+            _spatialGrid.Clear();
+
+            // Добавляем все игровые сущности
+            foreach (var entity in _gameEntities)
             {
-                entities.RemoveAll(e => !filter(e));
+                if (entity.IsActive)
+                {
+                    _spatialGrid.Add(entity);
+                }
             }
 
-            return entities;
-        }
-
-        /// <summary>
-        /// Получить сущности рядом с точкой
-        /// </summary>
-        public List<Entity> GetEntitiesNear(Vector2 position, float radius, Predicate<Entity> filter = null)
-        {
-            var area = new RectangleF(
-                position.X - radius,
-                position.Y - radius,
-                radius * 2,
-                radius * 2
-            );
-
-            var candidates = GetEntitiesInArea(area, filter);
-
-            // Уточняем по расстоянию
-            candidates.RemoveAll(e =>
-                Vector2.Distance(position, e.Position) > radius
-            );
-
-            return candidates;
-        }
-
-        /// <summary>
-        /// Получить тайлы в области
-        /// </summary>
-        public List<Entity> GetTilesInArea(RectangleF area, int minLayer = 0, int maxLayer = int.MaxValue)
-        {
-            var result = new List<Entity>();
-
-            int startX = Math.Max(0, (int)area.Left);
-            int endX = Math.Min(Width - 1, (int)area.Right);
-            int startY = Math.Max(0, (int)area.Top);
-            int endY = Math.Min(Height - 1, (int)area.Bottom);
-
-            for (int y = startY; y <= endY; y++)
+            // Добавляем все статические сущности
+            foreach (var entity in _staticEntities)
             {
-                for (int x = startX; x <= endX; x++)
+                if (entity.IsActive)
                 {
-                    int maxZ = Math.Min(_heightMap[x, y], maxLayer);
+                    _spatialGrid.Add(entity);
+                }
+            }
+        }
 
-                    for (int z = minLayer; z <= maxZ; z++)
+        private Rectangle GetVisibleBounds(ICamera camera)
+        {
+            if (camera is OrthographicCamera2_5D camera2_5D)
+            {
+                return camera2_5D.GetVisibleTileBounds();
+            }
+
+            // По умолчанию возвращаем область вокруг камеры
+            Vector3 camPos = camera.Position;
+            int visibleRange = 20; // 20 тайлов во все стороны
+
+            return new Rectangle(
+                (int)camPos.X - visibleRange,
+                (int)camPos.Y - visibleRange,
+                visibleRange * 2,
+                visibleRange * 2
+            );
+        }
+
+        private void SaveTilesToData(PersistenceData data)
+        {
+            if (_tileGrid == null) return;
+
+            var tilesData = new List<PersistenceData>();
+
+            for (int z = 0; z < Depth; z++)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    for (int x = 0; x < Width; x++)
                     {
-                        var tile = _tileGrid[x, y, z];
+                        var tile = _tileGrid.GetTile(x, y, z);
                         if (tile != null)
                         {
-                            result.Add(tile);
+                            tilesData.Add(tile.Save());
                         }
                     }
                 }
             }
 
-            return result;
+            data.SetValue("Tiles", tilesData);
         }
 
-        // === Проверка проходимости ===
-
-        /// <summary>
-        /// Можно ли пройти в клетку
-        /// </summary>
-        public bool IsWalkable(int x, int y)
+        private void LoadTilesFromData(PersistenceData data)
         {
-            var tile = GetTopTile(x, y);
-            return tile != null && IsWalkableTile(tile);
-        }
+            if (_tileGrid == null || !data.HasValue("Tiles")) return;
 
-        /// <summary>
-        /// Можно ли построить в клетке
-        /// </summary>
-        public bool IsBuildable(int x, int y, int z)
-        {
-            if (!IsInBounds(x, y, z))
-                return false;
-
-            // Проверяем, что клетка пуста
-            if (GetTile(x, y, z) != null)
-                return false;
-
-            // Проверяем опору (если не земля)
-            if (z > 0)
+            var tilesData = data.GetValue<List<PersistenceData>>("Tiles");
+            foreach (var tileData in tilesData)
             {
-                var below = GetTile(x, y, z - 1);
-                if (below == null || !IsSolidTile(below))
-                    return false;
-            }
-
-            return true;
-        }
-
-        // === Утилиты ===
-
-        private bool IsTileEntity(Entity entity)
-        {
-            // TODO: Можно добавить атрибут или интерфейс ITileEntity
-            return entity is StaticEntity; // Временное решение
-        }
-
-        private bool IsWalkableTile(Entity tile)
-        {
-            // TODO: Определить по свойствам тайла
-            return true;
-        }
-
-        private bool IsSolidTile(Entity tile)
-        {
-            // TODO: Определить по свойствам тайла
-            return tile != null;
-        }
-
-        /// <summary>
-        /// Проверить границы мира
-        /// </summary>
-        public bool IsInBounds(float x, float y, int z = 0)
-        {
-            return x >= 0 && x < Width &&
-                   y >= 0 && y < Height &&
-                   z >= 0 && z < MaxLayers;
-        }
-
-        /// <summary>
-        /// Преобразовать мировые координаты в грид-координаты
-        /// </summary>
-        public Point WorldToGrid(Vector2 worldPos)
-        {
-            return new Point(
-                (int)Math.Floor(worldPos.X / TileWidth),
-                (int)Math.Floor(worldPos.Y / TileHeight)
-            );
-        }
-
-        /// <summary>
-        /// Преобразовать грид-координаты в мировые
-        /// </summary>
-        public Vector2 GridToWorld(int gridX, int gridY)
-        {
-            return new Vector2(
-                gridX * TileWidth + TileWidth / 2,
-                gridY * TileHeight + TileHeight / 2
-            );
-        }
-
-        private Point GetChunkPosition(Vector2 worldPos)
-        {
-            int chunkX = (int)(worldPos.X / (CHUNK_SIZE * TileWidth));
-            int chunkY = (int)(worldPos.Y / (CHUNK_SIZE * TileHeight));
-            return new Point(chunkX, chunkY);
-        }
-
-        private void MarkChunkDirty(int gridX, int gridY)
-        {
-            int chunkX = gridX / CHUNK_SIZE;
-            int chunkY = gridY / CHUNK_SIZE;
-            var chunkPos = new Point(chunkX, chunkY);
-
-            if (_chunks.TryGetValue(chunkPos, out var chunk))
-            {
-                chunk.IsDirty = true;
+                var tile = new Tile(tileData);
+                _tileGrid.SetTile(tile.GridPosition.X, tile.GridPosition.Y, tile.Height, tile);
             }
         }
 
-        private void RecalculateHeightAt(int x, int y)
+        private void SaveEntitiesToData(PersistenceData data)
         {
-            for (int z = MaxLayers - 1; z >= 0; z--)
+            var entitiesData = new List<PersistenceData>();
+
+            // Сохраняем игровые сущности
+            foreach (var entity in _gameEntities)
             {
-                if (_tileGrid[x, y, z] != null)
+                entitiesData.Add(entity.Save());
+            }
+
+            // Сохраняем статические сущности
+            foreach (var entity in _staticEntities)
+            {
+                entitiesData.Add(entity.Save());
+            }
+
+            data.SetValue("Entities", entitiesData);
+        }
+
+        private void LoadEntitiesFromData(PersistenceData data)
+        {
+            if (!data.HasValue("Entities")) return;
+
+            _gameEntities.Clear();
+            _staticEntities.Clear();
+
+            var entitiesData = data.GetValue<List<PersistenceData>>("Entities");
+            foreach (var entityData in entitiesData)
+            {
+                string entityType = entityData.GetValue<string>("EntityType");
+
+                switch (entityType)
                 {
-                    _heightMap[x, y] = z;
-                    return;
+                    case "GameEntity":
+                        var gameEntity = new GameEntity(entityData);
+                        AddGameEntity(gameEntity);
+                        break;
+
+                    case "StaticEntity":
+                        var staticEntity = new StaticEntity(entityData);
+                        AddStaticEntity(staticEntity);
+                        break;
+
+                    default:
+                        Console.WriteLine($"[World] Неизвестный тип сущности: {entityType}");
+                        break;
                 }
             }
-
-            _heightMap[x, y] = 0;
         }
 
-        // === Генерация тестового мира ===
+        // === УТИЛИТЫ ===
 
-        public void GenerateTestWorld()
+        /// <summary>
+        /// Изменить состояние мира
+        /// </summary>
+        public void SetWorldState(WorldState state)
         {
-            Random random = new Random();
-
-            for (int y = 0; y < Height; y++)
-            {
-                for (int x = 0; x < Width; x++)
-                {
-                    // Случайная высота (холмы)
-                    float noise = (float)PerlinNoise(x * 0.1f, y * 0.1f, random);
-                    int height = (int)(3 + noise * 2);
-
-                    // Основание (камень)
-                    for (int z = 0; z < height - 1; z++)
-                    {
-                        CreateTile(x, y, z, (pos, h) =>
-                            new TestTile(pos, h) { TileColor = Color.DarkGray }
-                        );
-                    }
-
-                    // Верхний слой (трава/земля)
-                    CreateTile(x, y, height - 1, (pos, h) =>
-                    {
-                        var tile = new TestTile(pos, h);
-                        tile.TileColor = random.NextDouble() > 0.3 ? Color.Green : Color.SandyBrown;
-                        return tile;
-                    });
-
-                    // Иногда добавляем дерево
-                    if (random.NextDouble() > 0.9 && height > 2)
-                    {
-                        CreateTile(x, y, height, (pos, h) =>
-                            new TestTile(pos, h) { TileColor = Color.SaddleBrown, SetSize(0.3f, 0.3f) }
-                        );
-                    }
-                }
-            }
-
-            WorldChanged?.Invoke(this);
+            _worldState = state;
+            Console.WriteLine($"[World] Состояние мира изменено на: {state}");
         }
 
-        private float PerlinNoise(float x, float y, Random random)
-        {
-            // Упрощённый шум для теста
-            return (float)(Math.Sin(x * 0.3f) * Math.Cos(y * 0.3f) * 0.5f + 0.5f);
-        }
-
-        // === Очистка ===
-
+        /// <summary>
+        /// Очистить мир
+        /// </summary>
         public void Clear()
         {
-            // Удаляем все сущности
-            var entities = _spatialGrid.ToList();
-            foreach (var entity in entities)
-            {
-                RemoveEntity(entity);
-            }
-
-            // Очищаем грид
-            Array.Clear(_tileGrid, 0, _tileGrid.Length);
-            Array.Clear(_heightMap, 0, _heightMap.Length);
-
-            TotalTiles = 0;
-
-            // Сбрасываем чанки
-            foreach (var chunk in _chunks.Values)
-            {
-                chunk.Clear();
-            }
-
-            WorldChanged?.Invoke(this);
-        }
-
-        public void Dispose()
-        {
-            Clear();
+            _gameEntities.Clear();
+            _staticEntities.Clear();
             _spatialGrid.Clear();
-            _chunks.Clear();
-        }
-    }
+            _tileGrid?.Clear();
 
-    /// <summary>
-    /// Чанк мира для оптимизации
-    /// </summary>
-    public class WorldChunk
-    {
-        public Point Position { get; }
-        public int Size { get; }
-        public bool IsDirty { get; set; }
-        public bool IsVisible { get; set; } = true;
-
-        private readonly List<Entity> _entities = new();
-
-        public WorldChunk(Point position, int size)
-        {
-            Position = position;
-            Size = size;
+            Console.WriteLine($"[World] Мир '{Name}' очищен");
         }
 
-        public void AddEntity(Entity entity)
+        /// <summary>
+        /// Для отладки
+        /// </summary>
+        public override string ToString()
         {
-            if (!_entities.Contains(entity))
-            {
-                _entities.Add(entity);
-                IsDirty = true;
-            }
+            return $"World '{Name}' ({Width}x{Height}x{Depth}), Entities: {_gameEntities.Count + _staticEntities.Count}";
         }
 
-        public void RemoveEntity(Entity entity)
+        public void SetUpdateOrder(int order)
         {
-            if (_entities.Remove(entity))
-            {
-                IsDirty = true;
-            }
+            throw new NotImplementedException();
         }
 
-        public void Clear()
+        public void SetVisible(bool visible)
         {
-            _entities.Clear();
-            IsDirty = true;
+            throw new NotImplementedException();
         }
 
-        public List<Entity> GetEntities()
+        public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            return new List<Entity>(_entities);
+            throw new NotImplementedException();
+        }
+
+        public void SetDrawDepth(float depth)
+        {
+            throw new NotImplementedException();
         }
     }
 }

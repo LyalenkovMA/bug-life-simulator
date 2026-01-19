@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using TalesFromTheUnderbrush.src.Core.Entities;
 using Point = Microsoft.Xna.Framework.Point;
 
 namespace TalesFromTheUnderbrush.src
@@ -171,6 +172,11 @@ namespace TalesFromTheUnderbrush.src
         {
             return cell.X >= 0 && cell.X < _cellsX &&
                    cell.Y >= 0 && cell.Y < _cellsY;
+        }
+
+        public static implicit operator SpatialGrid<T>(SpatialGrid<Entity> v)
+        {
+            throw new NotImplementedException();
         }
     }
 }

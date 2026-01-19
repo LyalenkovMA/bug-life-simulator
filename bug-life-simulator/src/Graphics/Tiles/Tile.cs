@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace TalesFromTheUnderbrush.src.Core.Tiles
+namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 {
     /// <summary>
     /// Базовый класс тайла - ОТДЕЛЬНО от Entity

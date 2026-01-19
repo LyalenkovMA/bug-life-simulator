@@ -4,10 +4,11 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
+using TalesFromTheUnderbrush.src.Graphics.Tiles;
 using Color = Microsoft.Xna.Framework.Color;
 using Point = Microsoft.Xna.Framework.Point;
 
-namespace TalesFromTheUnderbrush.src.GameLogic
+namespace TalesFromTheUnderbrush.src
 {
     /// <summary>
     /// Игровой мир - содержит грид тайлов и управляет сущностями
@@ -21,14 +22,11 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public float TileWidth { get; private set; }
         public float TileHeight { get; private set; }
 
-        // === Грид тайлов [x, y, z] ===
-        private Entity[,,] _tileGrid;
+        private TileGrid _tileGrid;
+        private SpatialGrid<Entity> _spatialGrid;
 
         // === Карта высот (быстрый доступ к верхнему тайлу) ===
         private int[,] _heightMap;
-
-        // === Пространственное разделение (для оптимизации) ===
-        private readonly SpatialGrid<Entity> _spatialGrid;
 
         // === Чанковая система ===
         private const int CHUNK_SIZE = 16;
@@ -56,7 +54,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             TileHeight = tileHeight;
 
             // Инициализируем грид
-            _tileGrid = new Entity[width, height, maxLayers];
+            _tileGrid = new TileGrid(width, height, maxLayers);
             _heightMap = new int[width, height];
 
             // Инициализируем spatial grid

@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework;
 using Point = Microsoft.Xna.Framework.Point;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
-namespace TalesFromTheUnderbrush.src.Core.Tiles
+namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 {
     /// <summary>
     /// Управление гридом тайлов (отдельно от World)

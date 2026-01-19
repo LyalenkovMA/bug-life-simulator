@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TalesFromTheUnderbrush.src.Core.Tiles
+namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 {
     public static class TileIdGenerator
     {

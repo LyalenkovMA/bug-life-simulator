@@ -2,7 +2,7 @@
 using Point = Microsoft.Xna.Framework.Point;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
-namespace TalesFromTheUnderbrush.src.Core.Tiles
+namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 {
     /// <summary>
     /// Чанк тайлов для оптимизации рендеринга

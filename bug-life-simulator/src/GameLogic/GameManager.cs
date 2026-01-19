@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using TalesFromTheUnderbrush.tests;
+using TalesFromTheUnderbrush.src.Graphics;
 
 namespace TalesFromTheUnderbrush
 {
@@ -18,6 +19,8 @@ namespace TalesFromTheUnderbrush
 
     public class GameManager : IDisposable
     {
+        public Camera2_5D Camera { get; private set; }
+
         private GameStateType _currentState;
         private readonly Dictionary<GameStateType, IGameState> _states;
 
@@ -34,6 +37,8 @@ namespace TalesFromTheUnderbrush
             InitializeStates();
         }
 
+        private GraphicsDeviceManager _graphics;
+
         private void InitializeStates()
         {
             _states[GameStateType.MainMenu] = new TestState();
@@ -44,6 +49,11 @@ namespace TalesFromTheUnderbrush
             //_states[GameState.MainMenu] = _mainMenu;
             //_states[GameState.Playing] = _playingState;
             //_states[GameState.Paused] = _pauseState;
+
+            Camera = new Camera2_5D(
+            _graphics.PreferredBackBufferWidth,
+            _graphics.PreferredBackBufferHeight
+        );
         }
 
         public void LoadContent()

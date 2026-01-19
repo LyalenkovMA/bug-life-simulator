@@ -1,7 +1,8 @@
-﻿using System;
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
-using Microsoft.Xna.Framework;
 using Point = Microsoft.Xna.Framework.Point;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
@@ -17,6 +18,10 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public int Width { get; private set; }
         public int Height { get; private set; }
         public int Layers { get; private set; }
+        public int Depth { get; private set; }
+
+        public int ChunksWidth => _chunks.GetLength(0);
+        public int ChunksHeight => _chunks.GetLength(1);
 
         // === Грид тайлов ===
         private Tile[,,] _tiles;
@@ -29,7 +34,9 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         // === Чанки для оптимизации рендеринга ===
         private const int CHUNK_SIZE = 16;
-        private readonly Dictionary<Point, TileChunk> _chunks;
+        private readonly TileChunk[,] _chunks;
+        private readonly int _chunkSize;
+
 
         // === События ===
         public event Action<Tile> TileAdded;
@@ -40,28 +47,198 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public int TotalTiles { get; private set; }
 
         // === Конструктор ===
-        public TileGrid(int width, int height, int layers = 10)
+        public TileGrid(int width, int height, int depth = 1, int chunkSize = 16)
         {
-            if (width <= 0 || height <= 0 || layers <= 0)
-                throw new ArgumentException("Grid dimensions must be positive");
+            if (width <= 0 || height <= 0 || depth <= 0 || chunkSize <= 0)
+                throw new ArgumentException("Dimensions must be positive");
 
             Width = width;
             Height = height;
-            Layers = layers;
+            Depth = depth;
+            _chunkSize = chunkSize;
 
-            _tiles = new Tile[width, height, layers];
-            _heightMap = new int[width, height];
+            // Рассчитываем количество чанков
+            int chunksX = (int)Math.Ceiling((float)width / chunkSize);
+            int chunksY = (int)Math.Ceiling((float)height / chunkSize);
 
-            // Spatial grid для быстрого поиска тайлов
-            float worldWidth = width * Tile.TileSize.Width;
-            float worldHeight = height * Tile.TileSize.Height;
-            float cellSize = Math.Max(Tile.TileSize.Width, Tile.TileSize.Height) * 2;
-            _spatialGrid = new SpatialGrid<Tile>(worldWidth, worldHeight, cellSize);
+            _chunks = new TileChunk[chunksX, chunksY];
 
             // Инициализируем чанки
-            _chunks = new Dictionary<Point, TileChunk>();
-            InitializeChunks();
+            for (int x = 0; x < chunksX; x++)
+            {
+                for (int y = 0; y < chunksY; y++)
+                {
+                    // Рассчитываем размер чанка (крайние могут быть меньше)
+                    int chunkWidth = Math.Min(chunkSize, width - x * chunkSize);
+                    int chunkHeight = Math.Min(chunkSize, height - y * chunkSize);
+
+                    _chunks[x, y] = new TileChunk(x, y, chunkWidth, chunkHeight, depth);
+                }
+            }
+
+            Console.WriteLine($"[TileGrid] Создана сетка {width}x{height}x{depth}, чанков: {chunksX}x{chunksY}");
         }
+
+        /// <summary>
+        /// Получить все тайлы в указанной области
+        /// </summary>
+        public List<Tile> GetTilesInArea(Rectangle area)
+        {
+            var tiles = new List<Tile>();
+
+            // Определяем, какие чанки пересекаются с областью
+            int startChunkX = Math.Max(0, area.X / _chunkSize);
+            int startChunkY = Math.Max(0, area.Y / _chunkSize);
+            int endChunkX = Math.Min(ChunksWidth - 1, (area.X + area.Width) / _chunkSize);
+            int endChunkY = Math.Min(ChunksHeight - 1, (area.Y + area.Height) / _chunkSize);
+
+            for (int chunkX = startChunkX; chunkX <= endChunkX; chunkX++)
+            {
+                for (int chunkY = startChunkY; chunkY <= endChunkY; chunkY++)
+                {
+                    var chunk = _chunks[chunkX, chunkY];
+                    if (chunk != null)
+                    {
+                        tiles.AddRange(chunk.GetTilesInArea(area));
+                    }
+                }
+            }
+
+            return tiles;
+        }
+
+        /// <summary>
+        /// Получить все чанки в указанной области
+        /// </summary>
+        public List<TileChunk> GetChunksInArea(Rectangle area)
+        {
+            var chunks = new List<TileChunk>();
+
+            int startChunkX = Math.Max(0, area.X / _chunkSize);
+            int startChunkY = Math.Max(0, area.Y / _chunkSize);
+            int endChunkX = Math.Min(ChunksWidth - 1, (area.X + area.Width) / _chunkSize);
+            int endChunkY = Math.Min(ChunksHeight - 1, (area.Y + area.Height) / _chunkSize);
+
+            for (int chunkX = startChunkX; chunkX <= endChunkX; chunkX++)
+            {
+                for (int chunkY = startChunkY; chunkY <= endChunkY; chunkY++)
+                {
+                    var chunk = _chunks[chunkX, chunkY];
+                    if (chunk != null)
+                    {
+                        chunks.Add(chunk);
+                    }
+                }
+            }
+
+            return chunks;
+        }
+
+        /// <summary>
+        /// Получить чанк по мировым координатам
+        /// </summary>
+        public TileChunk GetChunkAtWorldPos(int worldX, int worldY)
+        {
+            if (worldX < 0 || worldY < 0 || worldX >= Width || worldY >= Height)
+                return null;
+
+            int chunkX = worldX / _chunkSize;
+            int chunkY = worldY / _chunkSize;
+
+            if (chunkX >= 0 && chunkX < ChunksWidth && chunkY >= 0 && chunkY < ChunksHeight)
+            {
+                return _chunks[chunkX, chunkY];
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Очистить все тайлы
+        /// </summary>
+        public void Clear()
+        {
+            for (int x = 0; x < ChunksWidth; x++)
+            {
+                for (int y = 0; y < ChunksHeight; y++)
+                {
+                    _chunks[x, y]?.Clear();
+                }
+            }
+
+            Console.WriteLine($"[TileGrid] Сетка очищена");
+        }
+
+        /// <summary>
+        /// Получить все видимые тайлы (для отрисовки)
+        /// </summary>
+        public IEnumerable<Tile> GetVisibleTiles()
+        {
+            foreach (var chunk in _chunks)
+            {
+                if (chunk != null)
+                {
+                    foreach (var tile in chunk.GetAllTiles())
+                    {
+                        if (tile?.IsVisible == true)
+                        {
+                            yield return tile;
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Получить тайл по координатам
+        /// </summary>
+        public Tile GetTile(int x, int y, int z = 0)
+        {
+            var chunk = GetChunkAtWorldPos(x, y);
+            if (chunk == null) return null;
+
+            // Локальные координаты внутри чанка
+            int localX = x % _chunkSize;
+            int localY = y % _chunkSize;
+
+            return chunk.GetTile(localX, localY, z);
+        }
+
+        /// <summary>
+        /// Установить тайл по координатам
+        /// </summary>
+        public void SetTile(int x, int y, int z, Tile tile)
+        {
+            var chunk = GetChunkAtWorldPos(x, y);
+            if (chunk == null) return;
+
+            int localX = x % _chunkSize;
+            int localY = y % _chunkSize;
+
+            chunk.SetTile(localX, localY, z, tile);
+
+            // Обновляем мировые координаты тайла
+            if (tile != null)
+            {
+                tile.SetWorldPosition(new Vector3(x, y, z));
+            }
+        }
+
+        // === ОТРИСОВКА ===
+        public void Draw(SpriteBatch spriteBatch)
+        {
+            foreach (var chunk in _chunks)
+            {
+                chunk?.Draw(spriteBatch);
+            }
+        }
+
+        // === ToString ===
+        public override string ToString()
+        {
+            return $"TileGrid {Width}x{Height}x{Depth} (Chunks: {ChunksWidth}x{ChunksHeight})";
+        }
+    }
 
         // === Основные операции ===
 
@@ -396,5 +573,5 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             _spatialGrid.Clear();
             _chunks.Clear();
         }
-    }   
+    }
 }

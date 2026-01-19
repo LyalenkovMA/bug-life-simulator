@@ -72,6 +72,8 @@ namespace TalesFromTheUnderbrush
             {
                 currentState.Update(gameTime);
 
+                HandleDebugInput();
+
                 // Проверка на смену состояния
                 var nextState = currentState.GetNextState();
                 if (nextState.HasValue && nextState.Value != _currentState)
@@ -116,6 +118,55 @@ namespace TalesFromTheUnderbrush
             {
                 if (state is IDisposable disposable)
                     disposable.Dispose();
+            }
+        }
+
+        // В GameManager.Update() добавить:
+        private void HandleDebugInput()
+        {
+            KeyboardState keyboard = Keyboard.GetState();
+
+            // F1 - переключить режим отладки
+            if (keyboard.IsKeyDown(Keys.F1) && keyboard.IsKeyUp(Keys.F1))
+            {
+                GlobalSettings.ToggleDebugMode();
+            }
+
+            // F2 - показать/скрыть FPS
+            if (keyboard.IsKeyDown(Keys.F2) && keyboard.IsKeyUp(Keys.F2))
+            {
+                GlobalSettings.ToggleDebugSetting("fps");
+            }
+
+            // F3 - показать/скрыть тайлы
+            if (keyboard.IsKeyDown(Keys.F3) && _prevKeyboardState.IsKeyUp(Keys.F3))
+            {
+                GlobalSettings.ToggleDebugSetting("tiles");
+            }
+
+            // F4 - показать/скрыть SpatialGrid
+            if (keyboard.IsKeyDown(Keys.F4) && _prevKeyboardState.IsKeyUp(Keys.F4))
+            {
+                GlobalSettings.ToggleDebugSetting("grid");
+            }
+
+            // F5 - показать/скрыть информацию о камере
+            if (keyboard.IsKeyDown(Keys.F5) && _prevKeyboardState.IsKeyUp(Keys.F5))
+            {
+                GlobalSettings.ToggleDebugSetting("camera");
+            }
+
+            // F6 - бог-режим
+            if (keyboard.IsKeyDown(Keys.F6) && _prevKeyboardState.IsKeyUp(Keys.F6))
+            {
+                GlobalSettings.GodMode = !GlobalSettings.GodMode;
+                Console.WriteLine($"[GameManager] GodMode = {GlobalSettings.GodMode}");
+            }
+
+            // F12 - сохранить скриншот дебаг-информации
+            if (keyboard.IsKeyDown(Keys.F12) && _prevKeyboardState.IsKeyUp(Keys.F12))
+            {
+                SaveDebugScreenshot();
             }
         }
     }

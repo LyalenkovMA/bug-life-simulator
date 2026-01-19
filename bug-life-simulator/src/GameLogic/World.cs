@@ -6,10 +6,12 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
+using TalesFromTheUnderbrush.src.Core.Tiles;
 using TalesFromTheUnderbrush.src.Graphics.Tiles;
 using TalesFromTheUnderbrush.src.UI.Camera;
 using Color = Microsoft.Xna.Framework.Color;
 using Point = Microsoft.Xna.Framework.Point;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace TalesFromTheUnderbrush.src.GameLogic
 {
@@ -74,7 +76,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             _gameEntities = new List<GameEntity>();
             _staticEntities = new List<StaticEntity>();
             _random = new Random();
-            _worldState = WorldState.Normal;
+            _worldState = new WorldState();
 
             Console.WriteLine($"[World] Создан мир '{name}' размером {width}x{height}x{depth}");
         }
@@ -113,10 +115,16 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         /// </summary>
         public void Update(GameTime gameTime)
         {
-            if (_worldState == WorldState.Paused)
+            if (_worldState.CurrentState == WorldState.StateType.Paused)
                 return;
 
+            // Обновляем время мира
+            _worldState.UpdateTime(gameTime);
+
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            // Применяем модификаторы из состояния мира
+            float effectiveDeltaTime = deltaTime * _worldState.TimeScale;
 
             // Обновляем все игровые сущности
             for (int i = _gameEntities.Count - 1; i >= 0; i--)
@@ -155,13 +163,28 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         /// <summary>
         /// Отрисовка мира
         /// </summary>
-        public void Draw(SpriteBatch spriteBatch)
+        public void Draw(SpriteBatch spriteBatch, ICamera camera)
         {
-            // Отрисовка тайлов (TileGrid сам управляет отрисовкой)
-            _tileGrid?.Draw(spriteBatch);
+            if (camera == null)
+            {
+                Draw(spriteBatch);
+                return;
+            }
 
-            // Отрисовка сущностей
-            foreach (var entity in _gameEntities)
+            // Получаем видимую область через камеру
+            Rectangle visibleBounds = GetVisibleBounds(camera);
+
+            // Отрисовываем только видимые чанки
+            var visibleChunks = _tileGrid?.GetChunksInArea(visibleBounds) ?? new List<TileChunk>();
+
+            foreach (TileChunk chunk in visibleChunks)
+            {
+                chunk.Draw(spriteBatch);
+            }
+
+            // Отрисовываем сущности в видимой области
+            var visibleEntities = GetEntitiesInArea(visibleBounds);
+            foreach (var entity in visibleEntities)
             {
                 if (entity.IsVisible)
                 {
@@ -169,12 +192,43 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 }
             }
 
+            // Отрисовка отладочной информации
+            if (GlobalSettings.DebugMode)
+            {
+                DrawDebugInfo(spriteBatch, visibleBounds, visibleChunks.Count, visibleEntities.Count);
+            }
+        }
+
+        /// <summary>
+        /// Отрисовка мира БЕЗ камеры (простая версия)
+        /// </summary>
+        public void Draw(SpriteBatch spriteBatch)
+        {
+            // Отрисовка тайлов (всех)
+            _tileGrid?.Draw(spriteBatch);
+
+            // Отрисовка всех игровых сущностей
+            foreach (GameEntity entity in _gameEntities)
+            {
+                if (entity.IsVisible)
+                {
+                    entity.Draw(spriteBatch);
+                }
+            }
+
+            // Отрисовка всех статических сущностей
             foreach (var entity in _staticEntities)
             {
                 if (entity.IsVisible)
                 {
                     entity.Draw(spriteBatch);
                 }
+            }
+
+            // Отладочная информация (если включен режим отладки)
+            if (GlobalSettings.DebugMode)
+            {
+                DrawDebugOverlay(spriteBatch);
             }
         }
 
@@ -431,6 +485,334 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 }
             }
         }
+
+        /// <summary>
+        /// Получить видимую область из камеры
+        /// </summary>
+        private Rectangle GetVisibleAreaFromCamera(ICamera camera)
+        {
+            // Проверяем тип камеры для оптимального получения области
+            if (camera is OrthographicCamera2_5D camera2_5D)
+            {
+                return camera2_5D.GetVisibleTileBounds();
+            }
+
+            // Универсальный способ для любой камеры
+            // Преобразуем углы экрана в мировые координаты
+            Vector2 screenTopLeft = Vector2.Zero;
+            Vector2 screenBottomRight = new Vector2(
+                _graphics.PreferredBackBufferWidth,
+                _graphics.PreferredBackBufferHeight);
+
+            Vector3 worldTopLeft = camera.ScreenToWorld(screenTopLeft, 0);
+            Vector3 worldBottomRight = camera.ScreenToWorld(screenBottomRight, 0);
+
+            return new Rectangle(
+                (int)Math.Floor(worldTopLeft.X),
+                (int)Math.Floor(worldTopLeft.Y),
+                (int)Math.Ceiling(worldBottomRight.X - worldTopLeft.X) + 2,
+                (int)Math.Ceiling(worldBottomRight.Y - worldTopLeft.Y) + 2
+            );
+        }
+
+        /// <summary>
+        /// Отрисовка только видимых тайлов
+        /// </summary>
+        private void DrawVisibleTiles(SpriteBatch spriteBatch, ICamera camera, Rectangle visibleArea)
+        {
+            if (_tileGrid == null) return;
+
+            // Получаем только чанки в видимой области
+            var visibleChunks = _tileGrid.GetChunksInArea(visibleArea);
+
+            foreach (var chunk in visibleChunks)
+            {
+                if (chunk == null) continue;
+
+                // Получаем тайлы из чанка, которые в видимой области
+                var tilesInChunk = chunk.GetTilesInArea(visibleArea);
+
+                foreach (var tile in tilesInChunk)
+                {
+                    if (tile == null || !tile.IsVisible) continue;
+
+                    // Преобразуем мировые координаты в экранные
+                    Vector2 screenPosition = camera.WorldToScreen(tile.WorldPosition);
+
+                    // Вычисляем глубину для сортировки
+                    float depth = CalculateTileDepth(tile.WorldPosition);
+
+                    // Отрисовываем тайл
+                    spriteBatch.Draw(
+                        tile.Texture,
+                        screenPosition,
+                        tile.SourceRectangle,
+                        tile.TintColor,
+                        0f,
+                        Vector2.Zero,
+                        Vector2.One,
+                        SpriteEffects.None,
+                        depth
+                    );
+
+                    // Отрисовка дебаг-информации для тайла
+                    if (GlobalSettings.ShowTileDebug)
+                    {
+                        DrawTileDebug(spriteBatch, tile, screenPosition);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Отрисовка только видимых сущностей
+        /// </summary>
+        private void DrawVisibleEntities(SpriteBatch spriteBatch, ICamera camera, Rectangle visibleArea)
+        {
+            // Получаем сущности в видимой области через SpatialGrid
+            var visibleEntities = _spatialGrid.GetEntitiesInArea(visibleArea);
+
+            // Сортируем сущности по глубине для корректного отображения
+            var sortedEntities = visibleEntities
+                .Where(e => e.IsVisible)
+                .OrderBy(e => CalculateEntityDepth(e))
+                .ToList();
+
+            foreach (var entity in sortedEntities)
+            {
+                // Для Entity без собственной отрисовки используем базовую
+                if (entity is IDrawable drawableEntity)
+                {
+                    drawableEntity.Draw(spriteBatch);
+                }
+                else
+                {
+                    // Базовая отрисовка для Entity
+                    DrawEntityBasic(spriteBatch, camera, entity);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Базовая отрисовка сущности (если нет собственной реализации)
+        /// </summary>
+        private void DrawEntityBasic(SpriteBatch spriteBatch, ICamera camera, Entity entity)
+        {
+            if (entity.Texture == null) return;
+
+            Vector2 screenPosition = camera.WorldToScreen(entity.Position);
+            float depth = CalculateEntityDepth(entity);
+
+            spriteBatch.Draw(
+                entity.Texture,
+                screenPosition,
+                null,
+                Color.White,
+                0f,
+                new Vector2(entity.Texture.Width / 2, entity.Texture.Height / 2),
+                Vector2.One,
+                SpriteEffects.None,
+                depth
+            );
+        }
+
+        /// <summary>
+        /// Вычисление глубины для тайла (Z-order для 2.5D)
+        /// </summary>
+        private float CalculateTileDepth(Vector3 worldPosition)
+        {
+            // Формула для изометрической 2.5D: чем дальше/ниже, тем меньше глубина
+            // Normalize to 0-1 range
+            return 1.0f - ((worldPosition.Y + worldPosition.X) * 0.001f + worldPosition.Z * 0.0001f);
+        }
+
+        /// <summary>
+        /// Вычисление глубины для сущности
+        /// </summary>
+        private float CalculateEntityDepth(Entity entity)
+        {
+            // Сущности отрисовываются поверх тайлов на той же высоте
+            return 1.0f - ((entity.Position.Y + entity.Position.X) * 0.001f +
+                          entity.Position.Z * 0.0001f) - 0.00001f;
+        }
+
+        // === ОТЛАДОЧНАЯ ОТРИСОВКА ===
+
+        /// <summary>
+        /// Общая отладочная информация (без камеры)
+        /// </summary>
+        private void DrawDebugOverlay(SpriteBatch spriteBatch)
+        {
+            var font = AssetManager.Instance?.GetFont("DebugFont");
+            if (font == null) return;
+
+            string debugText = $"World: {Name}\n" +
+                              $"State: {_worldState}\n" +
+                              $"Entities: {_gameEntities.Count + _staticEntities.Count}\n" +
+                              $"Time: {GetWorldTimeString()}";
+
+            spriteBatch.DrawString(font, debugText, new Vector2(10, 10), Color.White);
+        }
+
+        /// <summary>
+        /// Отладочная информация с камерой
+        /// </summary>
+        private void DrawCameraDebugInfo(SpriteBatch spriteBatch, ICamera camera, Rectangle visibleArea)
+        {
+            var font = AssetManager.Instance?.GetFont("DebugFont");
+            if (font == null) return;
+
+            // Собираем только включенную отладочную информацию
+            List<string> debugLines = new List<string>();
+
+            if (GlobalSettings.ShowWorldInfo)
+            {
+                debugLines.Add($"World: {Name}");
+                debugLines.Add($"State: {_worldState}");
+                debugLines.Add($"Entities: {_gameEntities.Count + _staticEntities.Count}");
+                debugLines.Add($"Time: {GetWorldTimeString()}");
+            }
+
+            if (GlobalSettings.ShowCameraInfo && camera != null)
+            {
+                debugLines.Add($"Camera: {camera.Position.X:F0},{camera.Position.Y:F0},{camera.Position.Z:F0}");
+                debugLines.Add($"Visible: {visibleArea.Width}x{visibleArea.Height}");
+                debugLines.Add($"Entities in view: {_spatialGrid?.GetEntitiesInArea(visibleArea).Count ?? 0}");
+            }
+
+            if (GlobalSettings.ShowTileDebug && _tileGrid != null)
+            {
+                debugLines.Add($"Tiles: {_tileGrid.Width}x{_tileGrid.Height}x{_tileGrid.Depth}");
+                debugLines.Add($"Chunks: {_tileGrid.ChunksWidth}x{_tileGrid.ChunksHeight}");
+            }
+
+            if (debugLines.Count == 0) return;
+
+            string debugText = string.Join("\n", debugLines);
+
+            // Фон для текста
+            var textSize = font.MeasureString(debugText);
+            var backgroundRect = new Rectangle(5, 5, (int)textSize.X + 10, (int)textSize.Y + 10);
+
+            spriteBatch.DrawRectangle(backgroundRect, Color.Black * 0.7f);
+            spriteBatch.DrawString(font, debugText, new Vector2(10, 10), Color.White);
+
+            // Визуализация если включено
+            if (GlobalSettings.ShowSpatialGrid)
+            {
+                DrawSpatialGridDebug(spriteBatch, camera);
+            }
+
+            if (GlobalSettings.ShowTileDebug)
+            {
+                DrawTileGridDebug(spriteBatch, camera, visibleArea);
+            }
+        }
+
+        /// <summary>
+        /// Отрисовка границ видимой области
+        /// </summary>
+        private void DrawVisibleAreaBounds(SpriteBatch spriteBatch, ICamera camera, Rectangle visibleArea)
+        {
+            // Преобразуем углы области в экранные координаты
+            Vector2[] corners = new Vector2[]
+            {
+                camera.WorldToScreen(new Vector3(visibleArea.Left, visibleArea.Top, 0)),
+                camera.WorldToScreen(new Vector3(visibleArea.Right, visibleArea.Top, 0)),
+                camera.WorldToScreen(new Vector3(visibleArea.Right, visibleArea.Bottom, 0)),
+                camera.WorldToScreen(new Vector3(visibleArea.Left, visibleArea.Bottom, 0))
+            };
+
+            // Рисуем линии границы
+            for (int i = 0; i < corners.Length; i++)
+            {
+                Vector2 start = corners[i];
+                Vector2 end = corners[(i + 1) % corners.Length];
+
+                DrawLine(spriteBatch, start, end, Color.Yellow * 0.5f, 2);
+            }
+        }
+
+        /// <summary>
+        /// Отладочная отрисовка тайла
+        /// </summary>
+        private void DrawTileDebug(SpriteBatch spriteBatch, Tile tile, Vector2 screenPosition)
+        {
+            // Рамка вокруг тайла
+            Rectangle tileRect = new Rectangle(
+                (int)screenPosition.X,
+                (int)screenPosition.Y,
+                tile.Texture?.Width ?? 64,
+                tile.Texture?.Height ?? 64);
+
+            spriteBatch.DrawRectangle(tileRect, Color.Red * 0.3f, 1);
+
+            // Координаты тайла
+            var font = AssetManager.Instance?.GetSmallFont();
+            if (font != null)
+            {
+                string coordText = $"{tile.GridPosition.X},{tile.GridPosition.Y},{tile.Height}";
+                spriteBatch.DrawString(font, coordText,
+                    new Vector2(screenPosition.X + 2, screenPosition.Y + 2),
+                    Color.White * 0.8f);
+            }
+        }
+
+        /// <summary>
+        /// Вспомогательный метод для рисования линии
+        /// </summary>
+        private void DrawLine(SpriteBatch spriteBatch, Vector2 start, Vector2 end, Color color, float thickness = 1f)
+        {
+            float length = Vector2.Distance(start, end);
+            float angle = (float)Math.Atan2(end.Y - start.Y, end.X - start.X);
+
+            // Используем белую текстуру 1x1
+            var pixel = AssetManager.Instance?.GetPixelTexture();
+            if (pixel == null) return;
+
+            spriteBatch.Draw(pixel,
+                start,
+                null,
+                color,
+                angle,
+                Vector2.Zero,
+                new Vector2(length, thickness),
+                SpriteEffects.None,
+                0f);
+        }
+
+        // === ДОПОЛНИТЕЛЬНЫЙ МЕТОД ДЛЯ GameManager ===
+
+        /// <summary>
+        /// Отрисовка мира с предустановленными настройками (для GameManager)
+        /// </summary>
+        public void DrawWithCamera(SpriteBatch spriteBatch, ICamera camera, bool enableDebug = false)
+        {
+            // Сохраняем текущее состояние отладки
+            bool oldDebugMode = GlobalSettings.DebugMode;
+
+            if (enableDebug)
+            {
+                GlobalSettings.DebugMode = true;
+            }
+
+            // Вызываем соответствующую перегрузку
+            if (camera != null)
+            {
+                Draw(spriteBatch, camera);
+            }
+            else
+            {
+                Draw(spriteBatch);
+            }
+
+            // Восстанавливаем состояние отладки
+            if (enableDebug)
+            {
+                GlobalSettings.DebugMode = oldDebugMode;
+            }
+        }
+    }
 
         private Rectangle GetVisibleBounds(ICamera camera)
         {

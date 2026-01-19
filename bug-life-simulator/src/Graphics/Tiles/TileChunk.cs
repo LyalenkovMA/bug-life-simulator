@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Point = Microsoft.Xna.Framework.Point;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
@@ -58,6 +59,11 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             int worldHeight = Size * Tile.TileSize.Height;
 
             return new Rectangle(worldX, worldY, worldWidth, worldHeight);
+        }
+
+        internal void SetTile(int localX, int localY, int z, Tile tile)
+        {
+            throw new NotImplementedException();
         }
     }
 }

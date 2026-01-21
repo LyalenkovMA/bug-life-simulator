@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using TalesFromTheUnderbrush.src.GameLogic;
 using TalesFromTheUnderbrush.src.UI.Camera;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
@@ -68,7 +69,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public bool IsDisposed { get; private set; }
 
         // === Ссылки ===
-        public World World { get; internal set; }
+        public World GameWorld { get; internal set; }
         public Entity Parent { get; private set; }
         public List<Entity> Children { get; } = new();
 

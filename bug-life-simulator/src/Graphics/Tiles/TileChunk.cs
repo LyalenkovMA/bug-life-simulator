@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Xna.Framework.Graphics;
+using System;
 using System.Collections.Generic;
 using Point = Microsoft.Xna.Framework.Point;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
@@ -49,6 +50,11 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public List<Tile> GetTiles()
         {
             return new List<Tile>(_tiles);
+        }
+
+        public void Draw(SpriteBatch spriteBatch)
+        {
+
         }
 
         public Rectangle GetBounds()

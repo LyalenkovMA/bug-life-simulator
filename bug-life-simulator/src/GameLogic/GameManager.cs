@@ -1,10 +1,12 @@
 ﻿using Microsoft.Xna.Framework;
-using TalesFromTheUnderbrush;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
-using TalesFromTheUnderbrush.tests;
+using TalesFromTheUnderbrush;
+using TalesFromTheUnderbrush.src.GameLogic;
 using TalesFromTheUnderbrush.src.Graphics;
+using TalesFromTheUnderbrush.tests;
 
 namespace TalesFromTheUnderbrush
 {
@@ -23,6 +25,9 @@ namespace TalesFromTheUnderbrush
 
         private GameStateType _currentState;
         private readonly Dictionary<GameStateType, IGameState> _states;
+        private World _world;
+        private SpriteBatch _spriteBatch;
+        private GraphicsDevice _graphicsDevice;
 
         // Разные состояния игры
         //private MainMenuState _mainMenu;
@@ -33,6 +38,8 @@ namespace TalesFromTheUnderbrush
         {
             _states = new Dictionary<GameStateType, IGameState>();
             _currentState = GameStateType.MainMenu;
+           
+            _world = new World("Test",30,30);
 
             InitializeStates();
         }
@@ -83,16 +90,18 @@ namespace TalesFromTheUnderbrush
             }
         }
 
-        public void Draw(GameTime gameTime)
+        // В GameManager.Draw():
+        protected void Draw(GameTime gameTime)
         {
-            // Отрисовка текущего состояния
-            if (_states.TryGetValue(_currentState, out var currentState))
-            {
-                currentState.Draw(gameTime);
-            }
+            GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            // Финализация отрисовки кадра
-            GlobalSettings.Renderer.Flush();
+            // Используем World с камерой
+            _world?.DrawWithCamera(_spriteBatch, ActiveCamera, GlobalSettings.DebugMode);
+
+            // Отдельно рисуем UI
+            //DrawUI();
+
+            //Draw(gameTime);
         }
 
         public void ChangeState(GameStateType newState)

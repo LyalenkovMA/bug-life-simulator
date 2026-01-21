@@ -1,17 +1,14 @@
 ﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
 using TalesFromTheUnderbrush.src.Core.Tiles;
-using TalesFromTheUnderbrush.src.Graphics;
 using TalesFromTheUnderbrush.src.Graphics.Tiles;
 using TalesFromTheUnderbrush.src.UI.Camera;
 using Color = Microsoft.Xna.Framework.Color;
-using Point = Microsoft.Xna.Framework.Point;
+using IDrawable = TalesFromTheUnderbrush.src.Graphics.IDrawable;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace TalesFromTheUnderbrush.src.GameLogic
@@ -33,6 +30,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public event EventHandler UpdateOrderChanged;
         public event EventHandler DrawDepthChanged;
         public event EventHandler VisibleChanged;
+        public GameTime GameTimeWorld;
         public event Action<IPersistable> OnBeforeSave;
         public event Action<IPersistable> OnAfterLoad;
 
@@ -78,6 +76,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             _staticEntities = new List<StaticEntity>();
             _random = new Random();
             _worldState = new WorldState();
+            GameTimeWorld = new GameTime();
 
             Console.WriteLine($"[World] Создан мир '{name}' размером {width}x{height}x{depth}");
         }
@@ -101,7 +100,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             _gameEntities = new List<GameEntity>();
             _staticEntities = new List<StaticEntity>();
             _random = new Random();
-            _worldState = data.GetValue<WorldState>("WorldState", WorldState.Normal);
+            _worldState = new WorldState();
 
             // Загружаем тайлы
             LoadTilesFromData(data);
@@ -176,7 +175,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             Rectangle visibleBounds = GetVisibleBounds(camera);
 
             // Отрисовываем только видимые чанки
-            var visibleChunks = _tileGrid?.GetChunksInArea(visibleBounds) ?? new List<TileChunk>();
+            List<TileChunk> visibleChunks = _tileGrid?.GetChunksInArea(visibleBounds) ?? new List<TileChunk>();
 
             foreach (TileChunk chunk in visibleChunks)
             {
@@ -184,12 +183,12 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             }
 
             // Отрисовываем сущности в видимой области
-            var visibleEntities = GetEntitiesInArea(visibleBounds);
-            foreach (var entity in visibleEntities)
+            List<Entity> visibleEntities = GetEntitiesInArea(visibleBounds);
+            foreach (Entity entity in visibleEntities)
             {
                 if (entity.IsVisible)
                 {
-                    entity.Draw(spriteBatch);
+                    entity.Draw(GameTimeWorld);
                 }
             }
 
@@ -213,16 +212,16 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             {
                 if (entity.IsVisible)
                 {
-                    entity.Draw(spriteBatch);
+                    entity.Draw(GameTimeWorld);
                 }
             }
 
             // Отрисовка всех статических сущностей
-            foreach (var entity in _staticEntities)
+            foreach (StaticEntity entity in _staticEntities)
             {
                 if (entity.IsVisible)
                 {
-                    entity.Draw(spriteBatch);
+                    entity.Draw(GameTimeWorld);
                 }
             }
 
@@ -230,44 +229,6 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             if (GlobalSettings.DebugMode)
             {
                 DrawDebugOverlay(spriteBatch);
-            }
-        }
-
-        /// <summary>
-        /// Отрисовка мира с учётом камеры (оптимизированная версия)
-        /// </summary>
-        public void Draw(SpriteBatch spriteBatch, ICamera camera)
-        {
-            if (camera == null)
-            {
-                Draw(spriteBatch);
-                return;
-            }
-
-            // Получаем видимую область через камеру
-            var visibleBounds = GetVisibleBounds(camera);
-
-            // Отрисовываем только видимые тайлы
-            if (_tileGrid != null)
-            {
-                var visibleTiles = _tileGrid.GetTilesInArea(visibleBounds);
-                foreach (var tile in visibleTiles)
-                {
-                    if (tile.IsVisible)
-                    {
-                        tile.Draw(spriteBatch);
-                    }
-                }
-            }
-
-            // Отрисовываем только видимые сущности
-            var visibleEntities = _spatialGrid.GetEntitiesInArea(visibleBounds);
-            foreach (var entity in visibleEntities)
-            {
-                if (entity.IsVisible)
-                {
-                    entity.Draw(spriteBatch);
-                }
             }
         }
 
@@ -284,7 +245,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             _gameEntities.Add(entity);
             _spatialGrid.Add(entity);
 
-            entity.World = this; // Связываем сущность с миром
+            //entity = this; // Связываем сущность с миром
 
             Console.WriteLine($"[World] Добавлена игровая сущность: {entity.Name}");
         }
@@ -420,7 +381,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         /// </summary>
         public PersistenceData Save()
         {
-            var data = new PersistenceData("World");
+            PersistenceData data = new PersistenceData();
 
             // Основные свойства
             data.SetValue("Name", Name);
@@ -428,6 +389,8 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             data.SetValue("Height", Height);
             data.SetValue("Depth", Depth);
             data.SetValue("WorldState", _worldState);
+
+            SaveWorldStateToData(data);
 
             // Сохраняем тайлы
             SaveTilesToData(data);
@@ -437,6 +400,32 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
             Console.WriteLine($"[World] Мир '{Name}' сохранён");
             return data;
+        }
+
+        /// <summary>
+        /// Получить модификаторы из состояния мира
+        /// </summary>
+        public (float movement, float combat, float resources) GetWorldModifiers()
+        {
+            return (_worldState.MovementModifier,
+                    _worldState.CombatModifier,
+                    _worldState.ResourceModifier);
+        }
+
+        /// <summary>
+        /// Проверить, сейчас ночь
+        /// </summary>
+        public bool IsNightTime()
+        {
+            return _worldState.CurrentState == WorldState.StateType.Night;
+        }
+
+        /// <summary>
+        /// Получить текущее время мира
+        /// </summary>
+        public string GetWorldTimeString()
+        {
+            return _worldState.WorldTime.ToString("HH:mm");
         }
 
         /// <summary>
@@ -458,6 +447,9 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
             // Обновляем SpatialGrid
             UpdateSpatialGrid();
+
+            // Загружаем состояние мира
+            LoadWorldStateFromData(data);
 
             Console.WriteLine($"[World] Мир '{Name}' загружен");
         }
@@ -487,6 +479,45 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             }
         }
 
+        private void DrawDebugInfo(SpriteBatch spriteBatch, Rectangle visibleBounds,
+                                 int visibleChunks, int visibleEntities)
+        {
+            var font = AssetManager.Instance.GetFont("DebugFont");
+            if (font == null) return;
+
+            Vector2 position = new Vector2(10, 10);
+
+            string info = $"World: {Name}\n" +
+                         $"State: {_worldState}\n" +
+                         $"Visible: {visibleBounds.X},{visibleBounds.Y} ({visibleBounds.Width}x{visibleBounds.Height})\n" +
+                         $"Chunks: {visibleChunks}, Entities: {visibleEntities}\n" +
+                         $"Total Entities: {_gameEntities.Count + _staticEntities.Count}";
+
+            // Фон для текста
+            var textSize = font.MeasureString(info);
+            spriteBatch.DrawRectangle(
+                new Rectangle((int)position.X - 2, (int)position.Y - 2,
+                             (int)textSize.X + 4, (int)textSize.Y + 4),
+                Color.Black * 0.5f);
+
+            // Текст
+            spriteBatch.DrawString(font, info, position, Color.White);
+
+            // Рисуем границу видимой области
+            if (camera is OrthographicCamera2_5D camera2_5D)
+            {
+                Vector2 topLeft = camera2_5D.WorldToScreen(new Vector3(visibleBounds.Left, visibleBounds.Top, 0));
+                Vector2 bottomRight = camera2_5D.WorldToScreen(new Vector3(visibleBounds.Right, visibleBounds.Bottom, 0));
+
+                Rectangle screenBounds = new Rectangle(
+                    (int)topLeft.X, (int)topLeft.Y,
+                    (int)(bottomRight.X - topLeft.X),
+                    (int)(bottomRight.Y - topLeft.Y));
+
+                spriteBatch.DrawRectangle(screenBounds, Color.Yellow * 0.3f, 2);
+            }
+        }
+
         /// <summary>
         /// Получить видимую область из камеры
         /// </summary>
@@ -501,9 +532,10 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             // Универсальный способ для любой камеры
             // Преобразуем углы экрана в мировые координаты
             Vector2 screenTopLeft = Vector2.Zero;
-            Vector2 screenBottomRight = new Vector2(
-                _graphics.PreferredBackBufferWidth,
-                _graphics.PreferredBackBufferHeight);
+            Vector2 screenBottomRight = Vector2.Zero;
+            //Vector2 screenBottomRight = new Vector2(
+            //    _graphics.PreferredBackBufferWidth,
+            //    _graphics.PreferredBackBufferHeight);
 
             Vector3 worldTopLeft = camera.ScreenToWorld(screenTopLeft, 0);
             Vector3 worldBottomRight = camera.ScreenToWorld(screenBottomRight, 0);
@@ -584,7 +616,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 // Для Entity без собственной отрисовки используем базовую
                 if (entity is IDrawable drawableEntity)
                 {
-                    drawableEntity.Draw(spriteBatch);
+                    drawableEntity.Draw(GameTimeWorld ,spriteBatch);
                 }
                 else
                 {
@@ -819,12 +851,20 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         {
             if (camera is OrthographicCamera2_5D camera2_5D)
             {
+                // Используем метод из камеры 2.5D
                 return camera2_5D.GetVisibleTileBounds();
             }
 
-            // По умолчанию возвращаем область вокруг камеры
+            // Резервный вариант для других камер
             Vector3 camPos = camera.Position;
-            int visibleRange = 20; // 20 тайлов во все стороны
+            int visibleRange = 15; // Тайлов в каждую сторону
+
+            // Учитываем зум камеры
+            if (camera is CameraBase cameraBase)
+            {
+                // Можно получить зум через рефлексию или добавить свойство в ICamera
+                visibleRange = (int)(visibleRange / cameraBase.Zoom);
+            }
 
             return new Rectangle(
                 (int)camPos.X - visibleRange,
@@ -862,10 +902,10 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         {
             if (_tileGrid == null || !data.HasValue("Tiles")) return;
 
-            var tilesData = data.GetValue<List<PersistenceData>>("Tiles");
-            foreach (var tileData in tilesData)
+            List<PersistenceData> tilesData = data.GetValue<List<PersistenceData>>("Tiles");
+            foreach (PersistenceData tileData in tilesData)
             {
-                var tile = new Tile(tileData);
+                Tile tile = new Tile(tileData);
                 _tileGrid.SetTile(tile.GridPosition.X, tile.GridPosition.Y, tile.Height, tile);
             }
         }
@@ -925,10 +965,10 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         /// <summary>
         /// Изменить состояние мира
         /// </summary>
-        public void SetWorldState(WorldState state)
+        public void SetWorldState(WorldState.StateType state, float timeScale = 1.0f)
         {
-            _worldState = state;
-            Console.WriteLine($"[World] Состояние мира изменено на: {state}");
+            _worldState.SetState(state, timeScale);
+            Console.WriteLine($"[World] Состояние мира изменено: {_worldState}");
         }
 
         /// <summary>
@@ -970,6 +1010,20 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public void SetDrawDepth(float depth)
         {
             throw new NotImplementedException();
+        }
+
+        private void SaveWorldStateToData(PersistenceData data)
+        {
+            data.SetValue("WorldState", _worldState.Save());
+        }
+
+        private void LoadWorldStateFromData(PersistenceData data)
+        {
+            if (data.HasValue("WorldState"))
+            {
+                var stateData = data.GetValue<PersistenceData>("WorldState");
+                _worldState.Load(stateData);
+            }
         }
     }
 }

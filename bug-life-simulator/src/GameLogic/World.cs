@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
 using TalesFromTheUnderbrush.src.Core.Tiles;
@@ -10,6 +11,7 @@ using TalesFromTheUnderbrush.src.UI.Camera;
 using Color = Microsoft.Xna.Framework.Color;
 using IDrawable = TalesFromTheUnderbrush.src.Graphics.IDrawable;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
+using TalesFromTheUnderbrush.src.Graphics.Tiles;
 
 namespace TalesFromTheUnderbrush.src.GameLogic
 {
@@ -106,6 +108,18 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             LoadTilesFromData(data);
 
             Console.WriteLine($"[World] Загружен мир '{Name}' из сохранения");
+        }
+
+        public bool IsTileWalkable(int x, int y, int z = 0)
+        {
+            if (_tileGrid == null) return false;
+            return _tileGrid.IsWalkable(x, y);
+        }
+
+        // И метод SetTileAt:
+        public void SetTileAt(int x, int y, int z, Tile tile)
+        {
+            _tileGrid?.SetTile(x, y, z, tile);
         }
 
         // === ОСНОВНЫЕ МЕТОДЫ ===
@@ -239,11 +253,12 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         /// </summary>
         public void AddGameEntity(GameEntity entity)
         {
+            RectangleF bounds = entity.GetBounds();
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
 
             _gameEntities.Add(entity);
-            _spatialGrid.Add(entity);
+            _spatialGrid.Add(entity, bounds);
 
             //entity = this; // Связываем сущность с миром
 
@@ -255,11 +270,13 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         /// </summary>
         public void AddStaticEntity(StaticEntity entity)
         {
+            RectangleF bounds = entity.GetBounds();
+
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
 
             _staticEntities.Add(entity);
-            _spatialGrid.Add(entity);
+            _spatialGrid.Add(entity, bounds);
 
             entity.World = this;
 
@@ -305,25 +322,11 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         }
 
         /// <summary>
-        /// Получить сущность по ID
-        /// </summary>
-        public Entity GetEntityById(Guid id)
-        {
-            // Ищем в игровых сущностях
-            var gameEntity = _gameEntities.FirstOrDefault(e => e.Id == id);
-            if (gameEntity != null) return gameEntity;
-
-            // Ищем в статических сущностях
-            var staticEntity = _staticEntities.FirstOrDefault(e => e.Id == id);
-            return staticEntity;
-        }
-
-        /// <summary>
         /// Получить все сущности в области
         /// </summary>
         public List<Entity> GetEntitiesInArea(Rectangle area)
         {
-            return _spatialGrid.GetEntitiesInArea(area).ToList();
+            return _spatialGrid.QueryEntities(area).ToList();
         }
 
         /// <summary>

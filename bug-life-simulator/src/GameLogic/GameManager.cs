@@ -23,28 +23,44 @@ namespace TalesFromTheUnderbrush
     {
         public Camera2_5D Camera { get; private set; }
 
+        private KeyboardState _prevKeyboardState;
         private GameStateType _currentState;
         private readonly Dictionary<GameStateType, IGameState> _states;
         private World _world;
         private SpriteBatch _spriteBatch;
         private GraphicsDevice _graphicsDevice;
+        private GraphicsDeviceManager _graphics;
 
         // Разные состояния игры
         //private MainMenuState _mainMenu;
         //private PlayingState _playingState;
         //private PauseState _pauseState;
 
-        public GameManager()
+        public GameManager(GraphicsDeviceManager graphics)
         {
+            _graphics = graphics;
             _states = new Dictionary<GameStateType, IGameState>();
             _currentState = GameStateType.MainMenu;
            
-            _world = new World("Test",30,30);
+            //_world = new World("Test",30,30);
 
             InitializeStates();
         }
 
-        private GraphicsDeviceManager _graphics;
+        public void Initialize(GraphicsDevice graphicsDevice, SpriteBatch spriteBatch)
+        {
+            _graphicsDevice = graphicsDevice;
+            _spriteBatch = spriteBatch;
+
+            // Создаем World здесь, после инициализации графики
+            _world = new World("Test", 30, 30);
+
+            // Инициализируем состояния
+            InitializeStates();
+
+            // Инициализируем World (если нужно)
+            _world.Initialize(graphicsDevice);
+        }
 
         private void InitializeStates()
         {
@@ -74,6 +90,7 @@ namespace TalesFromTheUnderbrush
 
         public void Update(GameTime gameTime)
         {
+            var currentKeyboard = Keyboard.GetState();
             // Обновление текущего состояния
             if (_states.TryGetValue(_currentState, out var currentState))
             {
@@ -88,16 +105,26 @@ namespace TalesFromTheUnderbrush
                     ChangeState(nextState.Value);
                 }
             }
+
+            HandleDebugInput(); // Будет использовать _prevKeyboardState
+
+            // Обновляем мир
+            _world?.Update(gameTime);
+
+            // Сохраняем состояние клавиатуры
+            _prevKeyboardState = currentKeyboard;
         }
 
         // В GameManager.Draw():
-        protected void Draw(GameTime gameTime)
+        public void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(Color.CornflowerBlue);
+            _graphicsDevice.Clear(Color.CornflowerBlue);
+            _spriteBatch.Begin();
 
-            // Используем World с камерой
-            _world?.DrawWithCamera(_spriteBatch, ActiveCamera, GlobalSettings.DebugMode);
+            // Рисуем мир
+            _world?.Draw(gameTime, _spriteBatch);
 
+            _spriteBatch.End();
             // Отдельно рисуем UI
             //DrawUI();
 

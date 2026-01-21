@@ -8,6 +8,7 @@ namespace TalesFromTheUnderbrush
     {
         private GraphicsDeviceManager _graphics;
         private GameManager _gameManager;
+        private SpriteBatch _spriteBatch;
 
         public Game1()
         {
@@ -24,10 +25,12 @@ namespace TalesFromTheUnderbrush
         protected override void Initialize()
         {
             // Инициализация глобальных сервисов (через GlobalSettings)
+            _gameManager = new GameManager(_graphics);
+            _spriteBatch = new SpriteBatch(GraphicsDevice);
             GlobalSettings.Initialize(Content, GraphicsDevice);
 
+            _gameManager.Initialize(GraphicsDevice,_spriteBatch);
             // Создание менеджера игры
-            _gameManager = new GameManager();
 
             base.Initialize();
         }

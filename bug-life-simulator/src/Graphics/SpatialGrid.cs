@@ -5,6 +5,7 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using TalesFromTheUnderbrush.src.Core.Entities;
 using Point = Microsoft.Xna.Framework.Point;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace TalesFromTheUnderbrush.src
 {
@@ -49,7 +50,7 @@ namespace TalesFromTheUnderbrush.src
             if (obj == null || _objectCells.ContainsKey(obj))
                 return;
 
-            var cells = GetCellsForBounds(bounds);
+            List<Point> cells = GetCellsForBounds(bounds);
             _objectCells[obj] = cells;
 
             foreach (var cell in cells)
@@ -178,5 +179,12 @@ namespace TalesFromTheUnderbrush.src
         {
             throw new NotImplementedException();
         }
+
+        public IEnumerable<T> QueryEntities(Rectangle area)
+        {
+            RectangleF rectF = new RectangleF(area.X, area.Y, area.Width, area.Height);
+            return Query(rectF);
+        }
     }
 }
+

@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using TalesFromTheUnderbrush.src.GameLogic;
 using Point = Microsoft.Xna.Framework.Point;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
@@ -171,12 +172,17 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// <summary>
         /// Получить тайл по координатам
         /// </summary>
-        public Tile GetTile(int x, int y, int layer)
+        public Tile GetTile(int x, int y, int z = 0)
         {
-            if (!IsInBounds(x, y, layer))
-                return null;
+            TileChunk chunk = GetChunkAtWorldPos(x, y);
+            if (chunk == null) return null;
 
-            return _tiles[x, y, layer];
+            // Локальные координаты внутри чанка
+            // chunk.Position - это позиция чанка в "чанковых" координатах
+            int localX = x - (chunk.Position.X * _chunkSize);
+            int localY = y - (chunk.Position.Y * _chunkSize);
+
+            return chunk.GetTile(localX, localY, z);
         }
 
         // === Основные операции (исправленные) ===
@@ -288,7 +294,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// </summary>
         private Point GetChunkPosition(Point gridPos)
         {
-            return new Point(gridPos.X / _chunkSize, gridPos.Y / _chunkSize);
+            return new Point(Width / _chunkSize, Height / _chunkSize);
         }
 
         //    public Tile GetTopTile(int x, int y)

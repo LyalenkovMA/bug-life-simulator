@@ -10,8 +10,12 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
     /// Базовый класс тайла - ОТДЕЛЬНО от Entity
     /// Оптимизирован для статичных объектов мира
     /// </summary>
-    public abstract class Tile : IDisposable
+    public abstract class Tile : IDisposable, IDrawable, IUpdatable
     {
+        public float DrawOrder { get; set; }
+        public bool Visible { get; set; } = true;
+        public event EventHandler DrawOrderChanged;
+        public event EventHandler VisibleChanged;
         // === ID и тип ===
         public ulong Id { get; }
         public TileType Type { get; protected set; }
@@ -61,9 +65,15 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public event Action<Tile> OnDestroyed;
         public event Action<Tile> OnDamaged;
         public event Action<Tile> OnChanged;
+        public event EventHandler DrawDepthChanged;
+        public event EventHandler UpdateOrderChanged;
 
         // === Статические размеры (одинаковые для всех тайлов) ===
         public static Size TileSize { get; set; } = new Size(64, 64);
+
+        public float DrawDepth => throw new NotImplementedException();
+
+        public int UpdateOrder { get;private set; }
 
         // === Конструктор ===
         protected Tile(Point gridPosition, int layer)
@@ -121,10 +131,13 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         public virtual void Update(GameTime gameTime)
         {
+            // Уже есть метод Update - нужно сделать его публичной реализацией интерфейса
             UpdateAnimation(gameTime);
+
+            // Дополнительная логика обновления
         }
 
-        private void UpdateAnimation(GameTime gameTime)
+        public void UpdateAnimation(GameTime gameTime)
         {
             if (!IsAnimated)
                 return;
@@ -229,6 +242,26 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public override string ToString()
         {
             return $"{Type} at ({GridPosition.X}, {GridPosition.Y}, {Layer})";
+        }
+
+        public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+        {
+
+        }
+
+        public void SetDrawDepth(float depth)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetVisible(bool visible)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetUpdateOrder(int order)
+        {
+            throw new NotImplementedException();
         }
     }
 

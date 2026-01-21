@@ -10,6 +10,9 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// </summary>
     public interface IDrawable
     {
+        float DrawOrder { get; }
+
+        event EventHandler DrawOrderChanged;
         /// <summary>
         /// Глубина отрисовки (меньше = раньше/ниже)
         /// </summary>
@@ -34,6 +37,8 @@ namespace TalesFromTheUnderbrush.src.Graphics
         /// Установить видимость
         /// </summary>
         void SetVisible(bool visible);
+
+        void Draw(GameTime gameTime);
 
         /// <summary>
         /// Событие изменения глубины

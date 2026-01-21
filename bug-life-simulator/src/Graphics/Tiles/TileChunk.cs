@@ -11,12 +11,20 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
     /// <summary>
     /// Чанк тайлов для оптимизации рендеринга
     /// </summary>
-    public class TileChunk
+    public class TileChunk : IDisposable, IDrawable
     {
+        public float DrawOrder { get;private set; }
+        public bool Visible { get;private set; } = true;
+        public event EventHandler DrawOrderChanged;
+        public event EventHandler VisibleChanged;
+        public event EventHandler DrawDepthChanged;
+
         public Point Position { get; private set; }
         public int Size { get; private set; }
         public bool IsDirty { get; set; } = true;
         public bool IsVisible { get; private set; } = true;
+
+        private SpriteBatch _spriteBatch;
 
         private readonly List<Tile> _tiles = new();
 
@@ -36,6 +44,8 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public int Width => _width;
         public int Height => _height;
         public int Depth => _depth;
+
+        public float DrawDepth => throw new NotImplementedException();
 
         /// <summary>
         /// Получить все тайлы в области (прямоугольник в мировых координатах)
@@ -148,6 +158,19 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             return new List<Tile>(_tiles);
         }
 
+        public void DrawChunk(SpriteBatch spriteBatch)
+        {
+            _spriteBatch = spriteBatch;
+            // существующая логика отрисовки
+            if (!Visible) return;
+
+            var sortedTiles = _tiles.OrderBy(t => t.Layer).ThenBy(t => t.GridPosition.Y);
+            foreach (var tile in sortedTiles)
+            {
+                // отрисовка тайлов
+            }
+        }
+
         public void Draw(SpriteBatch spriteBatch)
         {
             if (!IsVisible) return;
@@ -206,6 +229,21 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                 _tiles.Add(tile);
                 IsDirty = true; // Помечаем чанк как измененный
             }
+        }
+
+        public void Draw(Microsoft.Xna.Framework.GameTime gameTime, SpriteBatch spriteBatch)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetDrawDepth(float depth)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Draw(Microsoft.Xna.Framework.GameTime gameTime)
+        {
+            throw new NotImplementedException();
         }
     }
 }

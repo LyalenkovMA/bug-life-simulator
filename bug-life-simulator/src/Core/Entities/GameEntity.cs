@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using TalesFromTheUnderbrush.src.Graphics;
+using IDrawable = TalesFromTheUnderbrush.src.Graphics.IDrawable;
 
 namespace TalesFromTheUnderbrush.src.Core.Entities
 {
@@ -31,49 +32,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             UpdateOrder = order;
         }
 
-        // === IDrawable ===
-        private float _drawDepth = 0;
-        public float DrawDepth
-        {
-            get => _drawDepth;
-            private set
-            {
-                if (_drawDepth != value)
-                {
-                    _drawDepth = value;
-                    DrawDepthChanged?.Invoke(this, EventArgs.Empty);
-                }
-            }
-        }
-
-        private bool _visible = true;
-        public bool Visible
-        {
-            get => _visible;
-            private set
-            {
-                if (_visible != value)
-                {
-                    _visible = value;
-                    VisibleChanged?.Invoke(this, EventArgs.Empty);
-                }
-            }
-        }
-
-        public event EventHandler DrawDepthChanged;
-        public event EventHandler VisibleChanged;
-
-        public void SetDrawDepth(float depth)
-        {
-            DrawDepth = depth;
-        }
-
-        public void SetVisible(bool visible)
-        {
-            Visible = visible;
-            base.SetVisible(visible); // Вызываем базовый метод
-        }
-
         // === Конструктор ===
         protected GameEntity(string name = null) : base(name)
         {
@@ -84,6 +42,14 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         // === Реализация интерфейсов ===
         public abstract void Update(GameTime gameTime);
 
+        // У GameEntity своя специфическая отрисовка с SpriteBatch
+        public override void Draw(GameTime gameTime)
+        {
+            // Базовая реализация - ничего не делает
+            // Наследники должны переопределить Draw(GameTime, SpriteBatch)
+        }
+
+        // Это основной метод для GameEntity
         public abstract void Draw(GameTime gameTime, SpriteBatch spriteBatch);
 
         // === Утилиты ===
@@ -91,6 +57,19 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         {
             // Базовый расчет глубины: чем выше объект, тем позже рисуется
             SetDrawDepth(0.5f + (GetWorldHeight() * 0.05f));
+        }
+
+        // Методы для управления DrawOrder (наследуются от Entity)
+        public void SetDrawDepth(float depth)
+        {
+            // Используем protected setter из Entity
+            DrawOrder = depth;
+        }
+
+        public void SetVisible(bool visible)
+        {
+            Visible = visible;
+            base.SetVisible(visible);
         }
     }
 }

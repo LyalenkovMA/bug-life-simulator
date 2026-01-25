@@ -42,7 +42,7 @@ namespace TalesFromTheUnderbrush
             _states = new Dictionary<GameStateType, IGameState>();
             _currentState = GameStateType.MainMenu;
            
-            //_world = new World("Test",30,30);
+            _world = new World("Test",30,30);
 
             InitializeStates();
         }
@@ -57,9 +57,6 @@ namespace TalesFromTheUnderbrush
 
             // Инициализируем состояния
             InitializeStates();
-
-            // Инициализируем World (если нужно)
-            _world.Initialize(graphicsDevice);
         }
 
         private void InitializeStates()
@@ -122,7 +119,7 @@ namespace TalesFromTheUnderbrush
             _spriteBatch.Begin();
 
             // Рисуем мир
-            _world?.Draw(gameTime, _spriteBatch);
+            _world?.Draw(_spriteBatch);
 
             _spriteBatch.End();
             // Отдельно рисуем UI
@@ -197,12 +194,6 @@ namespace TalesFromTheUnderbrush
             {
                 GlobalSettings.GodMode = !GlobalSettings.GodMode;
                 Console.WriteLine($"[GameManager] GodMode = {GlobalSettings.GodMode}");
-            }
-
-            // F12 - сохранить скриншот дебаг-информации
-            if (keyboard.IsKeyDown(Keys.F12) && _prevKeyboardState.IsKeyUp(Keys.F12))
-            {
-                SaveDebugScreenshot();
             }
         }
     }

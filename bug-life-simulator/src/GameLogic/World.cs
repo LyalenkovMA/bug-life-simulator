@@ -5,12 +5,13 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
+using TalesFromTheUnderbrush.src.Graphics;
 using TalesFromTheUnderbrush.src.Graphics.Tiles;
 using TalesFromTheUnderbrush.src.UI.Camera;
 using Color = Microsoft.Xna.Framework.Color;
 using IDrawable = TalesFromTheUnderbrush.src.Graphics.IDrawable;
-using Rectangle = Microsoft.Xna.Framework.Rectangle;
 using Point = Microsoft.Xna.Framework.Point;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace TalesFromTheUnderbrush.src.GameLogic
 {
@@ -110,7 +111,6 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             entity.World = this;
 
             // Уведомляем
-            entity.OnAddedToWorld?.Invoke(entity);
             EntityAdded?.Invoke(entity);
 
             Console.WriteLine($"[World] Добавлена сущность: {entity.Name} (ID: {entity.Id})");
@@ -135,7 +135,6 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             entity.World = null;
 
             // Уведомляем
-            entity.OnRemovedFromWorld?.Invoke(entity);
             EntityRemoved?.Invoke(entity);
 
             Console.WriteLine($"[World] Удалена сущность: {entity.Name} (ID: {entity.Id})");
@@ -232,10 +231,10 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             if (_tileGrid != null)
             {
                 // Получаем видимые чанки
-                var visibleChunks = _tileGrid.GetChunksInArea(visibleBounds);
+                List<TileChunk> visibleChunks = _tileGrid.GetChunksInArea(visibleBounds);
 
                 // Устанавливаем SpriteBatch для чанков и отрисовываем
-                foreach (var chunk in visibleChunks)
+                foreach (TileChunk chunk in visibleChunks)
                 {
                     if (chunk is IDrawable drawableChunk)
                     {
@@ -254,10 +253,17 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             }
 
             // 2. Отрисовываем сущности в видимой области
+            // Устанавливаем SpriteBatch для всех видимых сущностей
             var visibleEntities = GetEntitiesInArea(visibleBounds);
+
             foreach (var entity in visibleEntities)
             {
-                if (entity.IsVisible)
+                if (entity is IRequiresSpriteBatch requiresBatch)
+                {
+                    requiresBatch.SetSpriteBatch(spriteBatch);
+                }
+
+                if (entity.Visible)
                 {
                     entity.Draw(GameTimeWorld);
                 }
@@ -317,7 +323,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public void Dispose()
         {
             // Удаляем все сущности
-            foreach (var entity in _entities.Values.ToList())
+            foreach (Entity entity in _entities.Values.ToList())
             {
                 RemoveEntity(entity);
                 entity.Dispose();

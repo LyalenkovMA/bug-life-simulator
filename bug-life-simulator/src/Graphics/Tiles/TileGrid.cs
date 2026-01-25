@@ -311,7 +311,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         //    /// </summary>
             public void SetTile(int x, int y, int z, Tile tile)
             {
-                var chunk = GetChunkAtWorldPos(x, y);
+                TileChunk chunk = GetChunkAtWorldPos(x, y);
                 if (chunk == null) return;
 
                 int localX = x % _chunkSize;
@@ -329,7 +329,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             // === ОТРИСОВКА ===
             public void Draw(SpriteBatch spriteBatch)
             {
-                foreach (var chunk in _chunks)
+                foreach (TileChunk chunk in _chunks)
                 {
                     chunk?.Draw(spriteBatch);
                 }
@@ -340,6 +340,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         //    {
         //        return $"TileGrid {Width}x{Height}x{Depth} (Chunks: {ChunksWidth}x{ChunksHeight})";
         //    }
-        //}
+     
     }
 }

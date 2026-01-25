@@ -9,13 +9,10 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
     /// <summary>
     /// Базовый класс тайла - ОТДЕЛЬНО от Entity
     /// Оптимизирован для статичных объектов мира
+    /// Теперь реализует IDrawable для унифицированной отрисовки
     /// </summary>
-    public abstract class Tile : IDisposable, IDrawable, IUpdatable
+    public abstract class Tile : DrawableBase, IDisposable, IRequiresSpriteBatch
     {
-        public float DrawOrder { get; set; }
-        public bool Visible { get; set; } = true;
-        public event EventHandler DrawOrderChanged;
-        public event EventHandler VisibleChanged;
         // === ID и тип ===
         public ulong Id { get; }
         public TileType Type { get; protected set; }
@@ -34,25 +31,26 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public float WorldHeight => Layer * TileSize.Height;
 
         // === Графические данные ===
-        public Rectangle SourceRect { get; protected set; }
-        public Color Color { get;private set; } = Color.White;
-        public float Rotation { get;private set; }
+        public Rectangle SourceRect { get; private set; }
+        public Color TintColor { get; private set; } = Color.White;
+        public float Rotation { get; private set; }
 
         // === Свойства для геймплея ===
-        public bool IsWalkable { get; protected set; } = true;
-        public bool IsTransparent { get; protected set; } = false;
-        public bool IsSolid { get; protected set; } = true;
-        public bool IsBuildable { get; protected set; } = true;
-        public bool IsDestructible { get; protected set; } = false;
+        public bool IsWalkable { get; private set; } = true;
+        public bool IsTransparent { get; private set; } = false;
+        public bool IsSolid { get; private set; } = true;
+        public bool IsBuildable { get; private set; } = true;
+        public bool IsDestructible { get; private set; } = false;
 
-        public int Durability { get; protected set; } = 100;
-        public int MaxDurability { get; protected set; } = 100;
+        public int Durability { get; private set; } = 100;
+        public int MaxDurability { get; private set; } = 100;
 
         // === Свойства из Tiled ===
         public Dictionary<string, string> Properties { get; } = new();
 
         // === Анимация ===
         public bool IsAnimated => _animationFrames != null && _animationFrames.Count > 1;
+        protected SpriteBatch CurrentSpriteBatch { get; private set; }
         private List<Rectangle> _animationFrames;
         private List<float> _animationDurations;
         private int _currentFrame;
@@ -65,15 +63,255 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public event Action<Tile> OnDestroyed;
         public event Action<Tile> OnDamaged;
         public event Action<Tile> OnChanged;
-        public event EventHandler DrawDepthChanged;
-        public event EventHandler UpdateOrderChanged;
 
         // === Статические размеры (одинаковые для всех тайлов) ===
         public static Size TileSize { get; set; } = new Size(64, 64);
 
-        public float DrawDepth => throw new NotImplementedException();
+        // === РЕАЛИЗАЦИЯ IDRAWABLE ===
+        public float DrawOrder
+        {
+            get => _drawOrder;
+            set
+            {
+                if (_drawOrder != value)
+                {
+                    _drawOrder = value;
+                    DrawOrderChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
 
-        public int UpdateOrder { get;private set; }
+        public void SetSpriteBatch(SpriteBatch spriteBatch)
+        {
+            CurrentSpriteBatch = spriteBatch;
+        }
+
+        // Переопределяем Draw для использования SpriteBatch
+        public override void Draw(GameTime gameTime)
+        {
+            if (!Visible || CurrentSpriteBatch == null) return;
+            Draw(gameTime, CurrentSpriteBatch);
+        }
+
+        public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+        {
+            if (!Visible || spriteBatch == null) return;
+            DrawTile(spriteBatch, gameTime);
+        }
+
+        protected abstract void DrawTile(SpriteBatch spriteBatch, GameTime gameTime);
+
+        // === Публичные методы для изменения свойств ===
+
+        /// <summary>
+        /// Установить цвет тайла
+        /// </summary>
+        public void SetTintColor(Color color)
+        {
+            TintColor = color;
+            OnChanged?.Invoke(this);
+        }
+
+        /// <summary>
+        /// Установить поворот тайла
+        /// </summary>
+        public void SetRotation(float rotation)
+        {
+            Rotation = rotation;
+            OnChanged?.Invoke(this);
+        }
+
+        /// <summary>
+        /// Установить прямоугольник источника текстуры
+        /// </summary>
+        public void SetSourceRect(Rectangle rect)
+        {
+            SourceRect = rect;
+            OnChanged?.Invoke(this);
+        }
+
+        /// <summary>
+        /// Установить свойство проходимости
+        /// </summary>
+        public void SetWalkable(bool walkable)
+        {
+            if (IsWalkable != walkable)
+            {
+                IsWalkable = walkable;
+                OnChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Установить свойство прозрачности
+        /// </summary>
+        public void SetTransparent(bool transparent)
+        {
+            if (IsTransparent != transparent)
+            {
+                IsTransparent = transparent;
+                OnChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Установить свойство твердости
+        /// </summary>
+        public void SetSolid(bool solid)
+        {
+            if (IsSolid != solid)
+            {
+                IsSolid = solid;
+                OnChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Установить возможность строительства
+        /// </summary>
+        public void SetBuildable(bool buildable)
+        {
+            if (IsBuildable != buildable)
+            {
+                IsBuildable = buildable;
+                OnChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Установить разрушаемость
+        /// </summary>
+        public void SetDestructible(bool destructible)
+        {
+            if (IsDestructible != destructible)
+            {
+                IsDestructible = destructible;
+                OnChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Установить прочность
+        /// </summary>
+        public void SetDurability(int durability)
+        {
+            if (durability < 0) durability = 0;
+
+            if (Durability != durability)
+            {
+                Durability = durability;
+                OnChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Установить максимальную прочность
+        /// </summary>
+        public void SetMaxDurability(int maxDurability)
+        {
+            if (maxDurability < 1) maxDurability = 1;
+
+            if (MaxDurability != maxDurability)
+            {
+                MaxDurability = maxDurability;
+
+                // Корректируем текущую прочность, если нужно
+                if (Durability > MaxDurability)
+                {
+                    Durability = MaxDurability;
+                }
+
+                OnChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Восстановить прочность до максимума
+        /// </summary>
+        public void RestoreDurability()
+        {
+            if (Durability != MaxDurability)
+            {
+                Durability = MaxDurability;
+                OnChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Нанести урон тайлу
+        /// </summary>
+        public void TakeDamage(int damage)
+        {
+            if (damage <= 0 || !IsDestructible) return;
+
+            int newDurability = Durability - damage;
+            SetDurability(newDurability);
+
+            if (newDurability <= 0)
+            {
+                Destroy();
+            }
+            else
+            {
+                OnDamaged?.Invoke(this);
+            }
+        }
+
+        // Protected методы для наследников
+        protected void SetTintColorInternal(Color color)
+        {
+            TintColor = color;
+            OnChanged?.Invoke(this);
+        }
+
+        protected void SetWalkableInternal(bool walkable)
+        {
+            IsWalkable = walkable;
+            OnChanged?.Invoke(this);
+        }
+
+        protected void SetTransparentInternal(bool transparent)
+        {
+            IsTransparent = transparent;
+            OnChanged?.Invoke(this);
+        }
+
+        protected void SetSolidInternal(bool solid)
+        {
+            IsSolid = solid;
+            OnChanged?.Invoke(this);
+        }
+
+        protected void SetBuildableInternal(bool buildable)
+        {
+            IsBuildable = buildable;
+            OnChanged?.Invoke(this);
+        }
+
+        protected void SetDestructibleInternal(bool destructible)
+        {
+            IsDestructible = destructible;
+            OnChanged?.Invoke(this);
+        }
+
+        private float _drawOrder = 0;
+
+        public bool Visible
+        {
+            get => _visible;
+            set
+            {
+                if (_visible != value)
+                {
+                    _visible = value;
+                    VisibleChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+        private bool _visible = true;
+
+        public event EventHandler DrawOrderChanged;
+        public event EventHandler VisibleChanged;
 
         // === Конструктор ===
         protected Tile(Point gridPosition, int layer)
@@ -81,6 +319,9 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             Id = TileIdGenerator.Next();
             GridPosition = gridPosition;
             Layer = layer;
+
+            // Автоматически вычисляем DrawOrder на основе положения
+            DrawOrder = layer * 1000 + gridPosition.Y * 10 + gridPosition.X;
         }
 
         // === Публичные методы ===
@@ -90,6 +331,9 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             GridPosition = gridPosition;
             Layer = layer;
             OnChanged?.Invoke(this);
+
+            // Обновляем DrawOrder при изменении позиции
+            DrawOrder = layer * 1000 + gridPosition.Y * 10 + gridPosition.X;
         }
 
         public void SetProperties(Dictionary<string, string> properties)
@@ -131,13 +375,10 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         public virtual void Update(GameTime gameTime)
         {
-            // Уже есть метод Update - нужно сделать его публичной реализацией интерфейса
             UpdateAnimation(gameTime);
-
-            // Дополнительная логика обновления
         }
 
-        public void UpdateAnimation(GameTime gameTime)
+        private void UpdateAnimation(GameTime gameTime)
         {
             if (!IsAnimated)
                 return;
@@ -151,6 +392,8 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                 SourceRect = _animationFrames[_currentFrame];
             }
         }
+
+
 
         // === Взаимодействие ===
 
@@ -173,6 +416,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         public virtual void Destroy()
         {
+            Visible = false;
             OnDestroyed?.Invoke(this);
             Dispose();
         }
@@ -209,17 +453,32 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         protected virtual void ApplyProperties()
         {
-            // Применяем стандартные свойства из Tiled
-            IsWalkable = GetProperty("walkable", "true") == "true";
-            IsTransparent = GetProperty("transparent", "false") == "true";
-            IsSolid = GetProperty("solid", "true") == "true";
-            IsBuildable = GetProperty("buildable", "true") == "true";
-            IsDestructible = GetProperty("destructible", "false") == "true";
+            // Применяем стандартные свойства из Tiled через сеттеры
+            SetWalkable(GetProperty("walkable", "true") == "true");
+            SetTransparent(GetProperty("transparent", "false") == "true");
+            SetSolid(GetProperty("solid", "true") == "true");
+            SetBuildable(GetProperty("buildable", "true") == "true");
+            SetDestructible(GetProperty("destructible", "false") == "true");
 
             if (int.TryParse(GetProperty("durability", ""), out int durability))
             {
-                Durability = durability;
-                MaxDurability = durability;
+                SetMaxDurability(durability);
+                RestoreDurability();
+            }
+
+            // Применяем видимость
+            Visible = GetProperty("visible", "true") == "true";
+
+            // Применяем цвет, если указан
+            string colorHex = GetProperty("color", "");
+            if (!string.IsNullOrEmpty(colorHex) && colorHex.StartsWith("#"))
+            {
+                try
+                {
+                    System.Drawing.Color color = System.Drawing.ColorTranslator.FromHtml(colorHex);
+                    SetTintColor(new Color(color.R, color.G, color.B, color.A));
+                }
+                catch { }
             }
         }
 
@@ -231,37 +490,22 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             OnDamaged = null;
             OnChanged = null;
 
+            DrawOrderChanged = null;
+            VisibleChanged = null;
+
             _animationFrames?.Clear();
             _animationDurations?.Clear();
             Properties.Clear();
 
             for (int i = 0; i < Neighbors.Length; i++)
                 Neighbors[i] = null;
+
+            CurrentSpriteBatch = null;
         }
 
         public override string ToString()
         {
-            return $"{Type} at ({GridPosition.X}, {GridPosition.Y}, {Layer})";
-        }
-
-        public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
-        {
-
-        }
-
-        public void SetDrawDepth(float depth)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void SetVisible(bool visible)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void SetUpdateOrder(int order)
-        {
-            throw new NotImplementedException();
+            return $"{Type} at ({GridPosition.X}, {GridPosition.Y}, {Layer}) [Visible: {Visible}, DrawOrder: {DrawOrder}]";
         }
     }
 
@@ -285,7 +529,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         Snow,
         Fungus,
         Special
-    }  
+    }
 
     public struct Size
     {

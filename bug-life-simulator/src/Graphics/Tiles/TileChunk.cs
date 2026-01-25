@@ -12,7 +12,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
     /// <summary>
     /// Чанк тайлов для оптимизации рендеринга
     /// </summary>
-    public class TileChunk : IDisposable, IDrawable
+    public class TileChunk : DrawableBase, IDisposable, IRequiresSpriteBatch
     {
         public bool Visible
         {
@@ -83,7 +83,16 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         // === Метод для установки SpriteBatch ===
         public void SetSpriteBatch(SpriteBatch spriteBatch)
         {
-            _currentSpriteBatch = spriteBatch;
+            _spriteBatch = spriteBatch;
+
+            // Также устанавливаем SpriteBatch для всех тайлов
+            foreach (var tile in _tiles)
+            {
+                if (tile is IRequiresSpriteBatch requiresBatch)
+                {
+                    requiresBatch.SetSpriteBatch(spriteBatch);
+                }
+            }
         }
 
         public float DrawDepth => throw new NotImplementedException();
@@ -210,14 +219,10 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        public void Draw(GameTime gameTime)
+        public override void Draw(GameTime gameTime)
         {
-            // Вызываем существующий метод отрисовки
-            // если у нас есть SpriteBatch
-            if (_currentSpriteBatch != null && Visible)
-            {
-                Draw(_currentSpriteBatch);  // Вызываем старый метод
-            }
+            if (!Visible || _spriteBatch == null) return;
+            Draw(gameTime, _spriteBatch);
         }
 
         public void Draw(SpriteBatch spriteBatch)
@@ -313,6 +318,21 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Y, thickness, rect.Height), color);
 
             pixel.Dispose();
+        }      
+
+        public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+        {
+            if (!Visible) return;
+
+            // Отрисовываем все видимые тайлы
+            var sortedTiles = _tiles
+                .Where(t => t != null && t.Visible)
+                .OrderBy(t => t.DrawOrder);
+
+            foreach (var tile in sortedTiles)
+            {
+                tile.Draw(gameTime, spriteBatch);
+            }
         }
     }
 }

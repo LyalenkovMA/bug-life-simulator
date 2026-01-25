@@ -74,7 +74,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
                     // Создаем базовый тайл (нужен будет конкретный класс)
                     // Временное решение для компиляции
-                    var tile = CreateBasicTile(x, y, 0, tileType);
+                    Tile tile = CreateBasicTile(x, y, 0, tileType);
                     _tileGrid.SetTile(x, y, 0, tile);
                 }
             }
@@ -85,20 +85,15 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         // Временный метод для создания базового тайла
         private Tile CreateBasicTile(int x, int y, int layer, TileType type)
         {
-            // Создаем простую реализацию Tile для теста
-            var tile = new BasicTile(new Point(x, y), layer);
-            tile.Type = type;
-            tile.IsWalkable = true;
-            tile.IsVisible = true;
 
-            // Устанавливаем цвет в зависимости от типа
-            tile.Color = type switch
+            // Создаем конкретный тип тайла
+            Tile tile = type switch
             {
-                TileType.Grass => Color.Green,
-                TileType.Dirt => Color.SaddleBrown,
-                TileType.Water => Color.Blue,
-                TileType.Stone => Color.Gray,
-                _ => Color.White
+                TileType.Grass => new GrassTile(new Point(x, y), layer),
+            //    TileType.Dirt => new DirtTile(new Point(x, y), layer), // Нужно создать
+            //    TileType.Water => new WaterTile(new Point(x, y), layer), // Нужно создать
+            //    TileType.Stone => new StoneTile(new Point(x, y), layer), // Нужно создать
+            //    _ => new GrassTile(new Point(x, y), layer) // По умолчанию
             };
 
             return tile;
@@ -164,7 +159,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public List<Entity> GetEntitiesInArea(Rectangle area)
         {
             // Преобразуем Rectangle в RectangleF для SpatialGrid
-            var rectF = new System.Drawing.RectangleF(area.X, area.Y, area.Width, area.Height);
+            var rectF = new RectangleF(area.X, area.Y, area.Width, area.Height);
             return _spatialGrid.Query(rectF).Cast<Entity>().ToList();
         }
 
@@ -186,7 +181,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
         public bool IsTileWalkable(int x, int y, int z = 0)
         {
-            var tile = GetTileAt(x, y, z);
+            Tile tile = GetTileAt(x, y, z);
             return tile?.IsWalkable ?? false;
         }
 
@@ -196,8 +191,8 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             GameTimeWorld = gameTime;
 
             // Обновляем все активные сущности
-            var activeEntities = _entities.Values.Where(e => e.IsActive).ToList();
-            foreach (var entity in activeEntities)
+            List<Entity> activeEntities = _entities.Values.Where(e => e.IsActive).ToList();
+            foreach (Entity entity in activeEntities)
             {
                 try
                 {

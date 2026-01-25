@@ -23,10 +23,14 @@ namespace TalesFromTheUnderbrush.src.Graphics
         /// </summary>
         bool Visible { get; }
 
+        bool IsVisible { get; }
+
         /// <summary>
         /// Отрисовка
         /// </summary>
-        void Draw(GameTime gameTime, SpriteBatch spriteBatch);
+        void Draw(SpriteBatch spriteBatch);
+
+        void Draw(GameTime gameTime);
 
         /// <summary>
         /// Установить глубину отрисовки
@@ -38,7 +42,6 @@ namespace TalesFromTheUnderbrush.src.Graphics
         /// </summary>
         void SetVisible(bool visible);
 
-        void Draw(GameTime gameTime);
 
         /// <summary>
         /// Событие изменения глубины

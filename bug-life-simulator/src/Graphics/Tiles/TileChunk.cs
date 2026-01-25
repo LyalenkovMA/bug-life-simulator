@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using SharpDX.Direct3D9;
 using System;
 using System.Collections.Generic;
@@ -13,8 +14,37 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
     /// </summary>
     public class TileChunk : IDisposable, IDrawable
     {
-        public float DrawOrder { get;private set; }
-        public bool Visible { get;private set; } = true;
+        public bool Visible
+        {
+            get => _visible;
+            set
+            {
+                if (_visible != value)
+                {
+                    _visible = value;
+                    VisibleChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+        public float DrawOrder
+        {
+            get => _drawOrder;
+            set
+            {
+                if (_drawOrder != value)
+                {
+                    _drawOrder = value;
+                    DrawOrderChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        public bool IsVisible
+        {
+            get => Visible;
+            set => Visible = value;
+        }
+
         public event EventHandler DrawOrderChanged;
         public event EventHandler VisibleChanged;
         public event EventHandler DrawDepthChanged;
@@ -22,14 +52,16 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public Point Position { get; private set; }
         public int Size { get; private set; }
         public bool IsDirty { get; set; } = true;
-        public bool IsVisible { get; private set; } = true;
-
         private SpriteBatch _spriteBatch;
+        private bool _visible = true;
+        private float _drawOrder = 0;
 
         private readonly List<Tile> _tiles = new();
 
         // Если их нет, добавьте в начало класса:
         private int _width, _height, _depth;
+        // Для хранения SpriteBatch (нужен для интерфейсного метода Draw)
+        private SpriteBatch _currentSpriteBatch;
 
 
         public TileChunk(Point position, int size)
@@ -39,11 +71,20 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             _width = size;
             _height = size;
             _depth = 1; // Или значение из конфигурации
+
+            // Инициализируем DrawOrder на основе позиции
+            DrawOrder = position.Y * 1000 + position.X;
         }
 
         public int Width => _width;
         public int Height => _height;
         public int Depth => _depth;
+
+        // === Метод для установки SpriteBatch ===
+        public void SetSpriteBatch(SpriteBatch spriteBatch)
+        {
+            _currentSpriteBatch = spriteBatch;
+        }
 
         public float DrawDepth => throw new NotImplementedException();
 
@@ -109,12 +150,10 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         public Tile GetTile(int x, int y, int z)
         {
-            // Проверяем границы
+            // Ваша существующая реализация
             if (x < 0 || x >= Size || y < 0 || y >= Size || z < 0 || z >= Depth)
                 return null;
 
-            // Ищем тайл с нужными координатами
-            // Глобальные координаты = Position * Size + локальные координаты
             int globalX = Position.X * Size + x;
             int globalY = Position.Y * Size + y;
 
@@ -171,26 +210,51 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
+        public void Draw(GameTime gameTime)
+        {
+            // Вызываем существующий метод отрисовки
+            // если у нас есть SpriteBatch
+            if (_currentSpriteBatch != null && Visible)
+            {
+                Draw(_currentSpriteBatch);  // Вызываем старый метод
+            }
+        }
+
         public void Draw(SpriteBatch spriteBatch)
         {
-            if (!IsVisible) return;
+            if (!Visible || spriteBatch == null)
+                return;
 
-            // Сортируем тайлы по слою для правильного отображения
-            var sortedTiles = _tiles.OrderBy(t => t.Layer).ThenBy(t => t.GridPosition.Y);
+            // Сортируем тайлы для правильного порядка отрисовки
+            var sortedTiles = _tiles
+                .Where(t => t != null && t.Visible)
+                .OrderBy(t => t.Layer)
+                .ThenBy(t => t.GridPosition.Y)
+                .ThenBy(t => t.GridPosition.X);
 
             foreach (Tile tile in sortedTiles)
             {
-                // Временная заглушка для отрисовки
-                // Позже нужно будет добавить текстуры
-                if (tile != null)
-                {
-                    // Для теста можно нарисовать простой прямоугольник
-                    // или добавить базовую отрисовку
-                }
-            }
+                // Временная отрисовка - простой прямоугольник
+                // ЗАМЕНИТЕ ЭТО на реальную отрисовку текстур
+                Rectangle tileRect = new Rectangle(
+                    (int)tile.WorldPosition.X - Tile.TileSize.Width / 2,
+                    (int)tile.WorldPosition.Y - Tile.TileSize.Height / 2,
+                    Tile.TileSize.Width,
+                    Tile.TileSize.Height
+                );
 
-            // После отрисовки сбрасываем флаг изменений
-            IsDirty = false;
+                // Создаем временную текстуру для отрисовки
+                Texture2D pixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
+                pixel.SetData(new[] { Color.White });
+
+                // Рисуем прямоугольник (для теста)
+                spriteBatch.Draw(pixel, tileRect, Color.Gray * 0.5f);
+
+                // Рисуем рамку
+                DrawRectangle(spriteBatch, tileRect, Color.DarkGray, 1);
+
+                pixel.Dispose();
+            }
         }
 
         public Rectangle GetBounds()
@@ -210,30 +274,22 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         public void Dispose()=> Clear();
 
-        internal void SetTile(int localX, int localY, int z, Tile tile)
+        internal void SetTile(int x, int y, int z, Tile tile)
         {
-            if (localX < 0 || localX >= Size || localY < 0 || localY >= Size || z < 0 || z >= Depth)
+            // Ваша существующая реализация
+            if (x < 0 || x >= Size || y < 0 || y >= Size || z < 0 || z >= Depth)
                 return;
 
-            // Удаляем старый тайл на этой позиции
-            RemoveTile(localX, localY, z);
+            RemoveTile(x, y, z);
 
             if (tile != null)
             {
-                // Устанавливаем позицию тайла
-                int globalX = Position.X * Size + localX;
-                int globalY = Position.Y * Size + localY;
+                int globalX = Position.X * Size + x;
+                int globalY = Position.Y * Size + y;
                 tile.SetPosition(new Point(globalX, globalY), z);
-
-                // Добавляем в список
                 _tiles.Add(tile);
-                IsDirty = true; // Помечаем чанк как измененный
+                IsDirty = true;
             }
-        }
-
-        public void Draw(Microsoft.Xna.Framework.GameTime gameTime, SpriteBatch spriteBatch)
-        {
-            throw new NotImplementedException();
         }
 
         public void SetDrawDepth(float depth)
@@ -241,9 +297,22 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             throw new NotImplementedException();
         }
 
-        public void Draw(Microsoft.Xna.Framework.GameTime gameTime)
+        // === Вспомогательный метод для отрисовки прямоугольника ===
+        private void DrawRectangle(SpriteBatch spriteBatch, Rectangle rect, Color color, int thickness)
         {
-            throw new NotImplementedException();
+            Texture2D pixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
+            pixel.SetData(new[] { Color.White });
+
+            // Верхняя линия
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, thickness), color);
+            // Нижняя линия
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - thickness, rect.Width, thickness), color);
+            // Левая линия
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, thickness, rect.Height), color);
+            // Правая линия
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Y, thickness, rect.Height), color);
+
+            pixel.Dispose();
         }
     }
 }

@@ -5,13 +5,11 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
-using TalesFromTheUnderbrush.src.Core.Tiles;
 using TalesFromTheUnderbrush.src.Graphics.Tiles;
 using TalesFromTheUnderbrush.src.UI.Camera;
 using Color = Microsoft.Xna.Framework.Color;
 using IDrawable = TalesFromTheUnderbrush.src.Graphics.IDrawable;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
-using TalesFromTheUnderbrush.src.Graphics.Tiles;
 using Point = Microsoft.Xna.Framework.Point;
 
 namespace TalesFromTheUnderbrush.src.GameLogic
@@ -64,22 +62,17 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         // === Инициализация тестовых тайлов ===
         private void InitializeTestTiles(int width, int height)
         {
-            // Создаем простой шахматный паттерн для теста
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
                 {
-                    // Чередуем типы тайлов
-                    var tileType = (x + y) % 2 == 0 ? TileType.Grass : TileType.Dirt;
+                    TileType type = (x + y) % 2 == 0 ? TileType.Grass : TileType.Dirt;
+                    Color color = type == TileType.Grass ? Color.Green : Color.SaddleBrown;
 
-                    // Создаем базовый тайл (нужен будет конкретный класс)
-                    // Временное решение для компиляции
-                    Tile tile = CreateBasicTile(x, y, 0, tileType);
-                    _tileGrid.SetTile(x, y, 0, tile);
+                    // Создаем через TileGrid
+                    _tileGrid.CreateTile(x, y, 0, type, color);
                 }
             }
-
-            Console.WriteLine($"[World] Создано {width * height} тестовых тайлов");
         }
 
         // Временный метод для создания базового тайла
@@ -176,19 +169,22 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
         public void SetTileAt(int x, int y, int z, Tile tile)
         {
+            // Все операции через TileGrid
             _tileGrid?.SetTile(x, y, z, tile);
         }
 
         public bool IsTileWalkable(int x, int y, int z = 0)
-        {
-            Tile tile = GetTileAt(x, y, z);
-            return tile?.IsWalkable ?? false;
+        { // Используем TileGrid
+            return _tileGrid?.IsWalkable(x, y) ?? false;
         }
 
         // === Обновление ===
         public void Update(GameTime gameTime)
         {
             GameTimeWorld = gameTime;
+
+            // Обновляем тайлы через TileGrid
+            _tileGrid.Update(gameTime);
 
             // Обновляем все активные сущности
             List<Entity> activeEntities = _entities.Values.Where(e => e.IsActive).ToList();
@@ -341,34 +337,6 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public override string ToString()
         {
             return $"World '{Name}' ({EntityCount} entities)";
-        }
-    }
-
-    // === Временный класс BasicTile для тестирования ===
-    internal class BasicTile : Tile
-    {
-        public Color Color { get; set; } = Color.White;
-        public bool IsVisible { get; set; } = true;
-
-        public BasicTile(Point gridPosition, int layer) : base(gridPosition, layer)
-        {
-        }
-
-        public override void Update(GameTime gameTime)
-        {
-            // Базовая реализация
-            base.Update(gameTime);
-        }
-
-        // Реализация IDrawable (Tile должен его реализовывать)
-        public float DrawOrder { get; set; }
-        public bool Visible { get => IsVisible; set => IsVisible = value; }
-        public event EventHandler DrawOrderChanged;
-        public event EventHandler VisibleChanged;
-
-        public void Draw(GameTime gameTime)
-        {
-            // Отрисовка будет через TileChunk
         }
     }
 }

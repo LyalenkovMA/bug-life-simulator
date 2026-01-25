@@ -86,6 +86,14 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             CurrentSpriteBatch = spriteBatch;
         }
 
+        // Метод для изменения позиции ТОЛЬКО из TileGrid
+        internal void SetPositionInternal(Point gridPosition, int layer)
+        {
+            GridPosition = gridPosition;
+            Layer = layer;
+            OnChanged?.Invoke(this);
+        }
+
         // Переопределяем Draw для использования SpriteBatch
         public override void Draw(GameTime gameTime)
         {

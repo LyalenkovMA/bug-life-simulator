@@ -195,32 +195,25 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             switch (type)
             {
                 case TileType.Grass:
-                    //tile.IsWalkable = true;
-                    //tile.IsSolid = true;
-                    //tile.TintColor = Color.Green;
+                    tile.SetWalkable(true);
+                    tile.SetSolid(true);
                     break;
                 case TileType.Dirt:
-                    //tile.IsWalkable = true;
-                    //tile.IsSolid = true;
-                    //tile.TintColor = Color.SaddleBrown;
+                    tile.SetWalkable(true);
+                    tile.SetSolid(true);
                     break;
                 case TileType.Stone:
-                    //tile.IsWalkable = true;
-                    //tile.IsSolid = true;
-                    //tile.TintColor = Color.Gray;
-                    //tile.IsDestructible = true;
+                    tile.SetWalkable(true);
+                    tile.SetSolid(true);
                     tile.SetMaxDurability(200);
                     break;
                 case TileType.Water:
-                    //tile.IsWalkable = false;
-                    //tile.IsSolid = false;
-                    //tile.IsTransparent = true;
-                    //tile.TintColor = Color.Blue;
+                    tile.SetWalkable(false);
+                    tile.SetSolid(false);
                     break;
                 case TileType.Sand:
-                    //tile.IsWalkable = true;
-                    //tile.IsSolid = true;
-                    //tile.TintColor = Color.SandyBrown;
+                    tile.SetWalkable(true);
+                    tile.SetSolid(true);
                     break;
             }
         }

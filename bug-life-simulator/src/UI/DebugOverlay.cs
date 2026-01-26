@@ -105,8 +105,8 @@ namespace TalesFromTheUnderbrush.src.UI
             if (GlobalSettings.ShowWorldInfo && _world != null)
             {
                 lines.Add($"World: {_world.Name}");
-                lines.Add($"Time: {_world.GetWorldTimeString()}");
-                lines.Add($"State: {_world.State}");
+                //lines.Add($"Time: {_world.GetWorldTimeString()}");
+                //lines.Add($"State: {_world.State}");
             }
 
             // Рисуем все строки
@@ -119,10 +119,10 @@ namespace TalesFromTheUnderbrush.src.UI
                 float width = lines.Max(l => _font.MeasureString(l).X) + 20;
                 float height = lines.Count * lineHeight + 10;
 
-                spriteBatch.DrawRectangle(
-                    new Rectangle((int)position.X - 5, (int)position.Y - 5,
-                                 (int)width, (int)height),
-                    Color.Black * 0.5f);
+                //spriteBatch.DrawRectangle(
+                //    new Rectangle((int)position.X - 5, (int)position.Y - 5,
+                //                 (int)width, (int)height),
+                //    Color.Black * 0.5f);
             }
 
             // Текст

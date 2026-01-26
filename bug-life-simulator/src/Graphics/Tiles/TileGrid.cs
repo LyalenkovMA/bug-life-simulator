@@ -125,7 +125,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                 //TileType.Dirt => new DirtTile(new Point(x, y), z),
                 //TileType.Stone => new StoneTile(new Point(x, y), z),
                 //TileType.Water => new WaterTile(new Point(x, y), z),
-                //_ => new BasicTile(new Point(x, y), z)
+                _ => new BasicTile(new Point(x, y), z)
             };
 
             if (color.HasValue)
@@ -197,6 +197,23 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                 if (chunk is IUpdatable updatableChunk)
                 {
                     updatableChunk.Update(gameTime);
+                }
+            }
+        }
+
+        public IEnumerable<Tile> GetVisibleTiles()
+        {
+            foreach (var chunk in _chunks)
+            {
+                if (chunk != null)
+                {
+                    foreach (Tile tile in chunk.GetAllTiles())
+                    {
+                        if (tile?.IsTransparent == true) // ОШИБКА: IsVisible устарело
+                        {
+                            yield return tile;
+                        }
+                    }
                 }
             }
         }

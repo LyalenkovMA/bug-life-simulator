@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using TalesFromTheUnderbrush;
 using TalesFromTheUnderbrush.src.GameLogic;
 using TalesFromTheUnderbrush.src.Graphics;
+using TalesFromTheUnderbrush.src.UI.Camera;
 using TalesFromTheUnderbrush.tests;
 
 namespace TalesFromTheUnderbrush

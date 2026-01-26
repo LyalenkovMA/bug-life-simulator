@@ -153,7 +153,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
 
             if (drawable is IHasBounds hasBounds)
             {
-                return camera.Bounds.Intersects(hasBounds.GetBounds());
+                return camera.Bounds.Equals(hasBounds.GetBounds());
             }
 
             return true; // Если нет информации о границах, считаем видимым

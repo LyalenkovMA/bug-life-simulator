@@ -241,7 +241,8 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         {
             // Временное решение - создаем простой тайл
             // В реальном проекте создавайте: new GrassTile(), new StoneTile() и т.д.
-            return Activator.CreateInstance(typeof(T), position, layer) as T;
+            //return Activator.CreateInstance(typeof(T), position, layer) as T;
+            return null;
         }
 
         /// <summary>

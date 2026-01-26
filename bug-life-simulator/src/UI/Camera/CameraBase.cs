@@ -2,39 +2,25 @@
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Drawing;
+using TalesFromTheUnderbrush.src.Graphics;
 
 namespace TalesFromTheUnderbrush.src.UI.Camera
 {
     public abstract class CameraBase : ICamera
     {
-        // === ПРИВАТНЫЕ ПОЛЯ (полная инкапсуляция) ===
+        // === ПРИВАТНЫЕ ПОЛЯ ===
         private Vector3 _position;
         private Vector3 _target;
         private Matrix _viewMatrix;
         private Matrix _projectionMatrix;
         private Matrix _viewProjectionMatrix;
-
         private int _viewportWidth;
         private int _viewportHeight;
 
+        // === РЕАЛИЗАЦИЯ IUpdatable и IDrawable ===
         private int _updateOrder = 0;
-        private float _drawDepth = 0f;
-        private bool _visible = true;
-
-        public RectangleF Bounds
-        {
-            get
-            {
-                Vector3 topLeftWorld = ScreenToWorld(Vector2.Zero, 0);
-                Vector3 bottomRightWorld = ScreenToWorld(new Vector2(_viewportWidth, _viewportHeight), 0);
-                return new RectangleF(
-                    topLeftWorld.X,
-                    topLeftWorld.Y,
-                    bottomRightWorld.X - topLeftWorld.X,
-                    bottomRightWorld.Y - topLeftWorld.Y
-                );
-            }
-        }
+        private float _drawDepth = 0.5f; // Средняя глубина
+        private bool _visible = true; // Камеры обычно невидимы, но свойство должно быть
 
         public int UpdateOrder
         {
@@ -75,23 +61,37 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             }
         }
 
+        public RectangleF Bounds
+        {
+            get
+            {
+                // Для ортографической камеры
+                Vector3 topLeftWorld = ScreenToWorld(Vector2.Zero, 0);
+                Vector3 bottomRightWorld = ScreenToWorld(new Vector2(_viewportWidth, _viewportHeight), 0);
+                return new RectangleF(
+                    topLeftWorld.X,
+                    topLeftWorld.Y,
+                    bottomRightWorld.X - topLeftWorld.X,
+                    bottomRightWorld.Y - topLeftWorld.Y
+                );
+            }
+        }
+
         public event EventHandler UpdateOrderChanged;
         public event EventHandler DrawDepthChanged;
         public event EventHandler VisibleChanged;
+        public event EventHandler<EventArgs> DrawOrderChanged;
 
-        // === ПУБЛИЧНЫЕ СВОЙСТВА (только чтение) ===
+        // === ПУБЛИЧНЫЕ СВОЙСТВА ICamera ===
         public Vector3 Position => _position;
         public Vector3 Target => _target;
         public Matrix ViewMatrix => _viewMatrix;
         public Matrix ProjectionMatrix => _projectionMatrix;
         public Matrix ViewProjectionMatrix => _viewProjectionMatrix;
-
         public int ViewportWidth => _viewportWidth;
         public int ViewportHeight => _viewportHeight;
 
-        // === ЗАЩИЩЕННЫЕ СЕТТЕРЫ (контролируемое изменение) ===
-
-        /// <summary>Установить позицию с проверками</summary>
+        // === ЗАЩИЩЕННЫЕ СЕТТЕРЫ ===
         protected void SetPosition(Vector3 position, bool updateView = true)
         {
             if (_position == position) return;
@@ -107,7 +107,6 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             OnPositionChanged();
         }
 
-        /// <summary>Установить цель с проверками</summary>
         protected void SetTarget(Vector3 target, bool updateView = true)
         {
             if (_target == target) return;
@@ -123,51 +122,38 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             OnTargetChanged();
         }
 
-        /// <summary>Установить матрицу проекции</summary>
         protected void SetProjectionMatrix(Matrix matrix)
         {
             if (_projectionMatrix == matrix) return;
 
             _projectionMatrix = matrix;
             UpdateViewProjection();
-
             OnProjectionChanged();
         }
 
-        /// <summary>Установить матрицу вида</summary>
         protected void SetViewMatrix(Matrix matrix)
         {
             if (_viewMatrix == matrix) return;
 
             _viewMatrix = matrix;
             UpdateViewProjection();
-
             OnViewChanged();
         }
 
-        /// <summary>Обновить объединенную матрицу</summary>
         private void UpdateViewProjection()
         {
             _viewProjectionMatrix = _viewMatrix * _projectionMatrix;
             OnViewProjectionChanged();
         }
 
-        // === СВОЙСТВА ДЛЯ НАСЛЕДНИКОВ (контролируемые) ===
-
-        /// <summary>Скорость движения (наследники могут менять, но с валидацией)</summary>
+        // === СВОЙСТВА ДЛЯ НАСЛЕДНИКОВ ===
         protected float MoveSpeed { get; set; } = 5.0f;
-
-        /// <summary>Скорость зума</summary>
         protected float ZoomSpeed { get; set; } = 0.1f;
-
-        /// <summary>Скорость вращения</summary>
         protected float RotationSpeed { get; set; } = 0.005f;
-
-        /// <summary>Использовать плавность движения</summary>
         protected bool UseSmoothing { get; set; } = true;
-
-        /// <summary>Коэффициент плавности (0-1)</summary>
         protected float Smoothness { get; set; } = 0.85f;
+
+        public int DrawOrder => throw new NotImplementedException();
 
         // === КОНСТРУКТОР ===
         protected CameraBase(int viewportWidth, int viewportHeight)
@@ -181,28 +167,38 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             InitializeMatrices();
         }
 
-        // === АБСТРАКТНЫЕ МЕТОДЫ ===
+        event EventHandler<EventArgs> Microsoft.Xna.Framework.IDrawable.VisibleChanged
+        {
+            add
+            {
+                throw new NotImplementedException();
+            }
+
+            remove
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        // === АБСТРАКТНЫЕ МЕТОДЫ (требуют реализации в наследниках) ===
         public abstract void Update(GameTime gameTime);
         public abstract Vector2 WorldToScreen(Vector3 worldPosition);
         public abstract Vector3 ScreenToWorld(Vector2 screenPosition, float worldZ = 0);
 
-        // === ВИРТУАЛЬНЫЕ МЕТОДЫ (можно переопределить) ===
-
-        /// <summary>Инициализация матриц</summary>
+        // === ВИРТУАЛЬНЫЕ МЕТОДЫ ===
         protected virtual void InitializeMatrices()
         {
-            // Базовая ортографическая проекция
+            // Базовая ортографическая проекция для 2D/2.5D
             SetProjectionMatrix(Matrix.CreateOrthographicOffCenter(
                 0, _viewportWidth,
                 _viewportHeight, 0,
                 -1000, 1000));
 
             SetViewMatrix(Matrix.Identity);
-            SetPosition(Vector3.Zero);
-            SetTarget(Vector3.UnitZ);
+            SetPosition(new Vector3(_viewportWidth / 2f, _viewportHeight / 2f, 100)); // Сверху
+            SetTarget(new Vector3(_viewportWidth / 2f, _viewportHeight / 2f, 0)); // Смотрим вниз
         }
 
-        /// <summary>Обновление матрицы вида (переопределить в наследниках)</summary>
         protected virtual void UpdateViewMatrix()
         {
             // Базовая реализация - камера смотрит на цель
@@ -214,7 +210,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             SetViewMatrix(viewMatrix);
         }
 
-        /// <summary>Установка размера viewport</summary>
+        // === ПУБЛИЧНЫЕ МЕТОДЫ ICamera ===
         public virtual void SetViewport(int width, int height)
         {
             if (width <= 0 || height <= 0)
@@ -228,14 +224,11 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
                 0, width, height, 0, -1000, 1000));
         }
 
-        /// <summary>Направить камеру на цель (публичный метод)</summary>
         public virtual void LookAt(Vector3 target)
         {
             SetTarget(target);
-            UpdateViewMatrix();
         }
 
-        /// <summary>Переместить камеру (публичный метод)</summary>
         public virtual void Move(Vector3 offset)
         {
             if (offset == Vector3.Zero) return;
@@ -244,7 +237,6 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             SetTarget(_target + offset);
         }
 
-        /// <summary>Установить позицию камеры (публичный метод)</summary>
         public virtual void Teleport(Vector3 position)
         {
             Vector3 offset = position - _position;
@@ -252,48 +244,66 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             SetTarget(_target + offset);
         }
 
-        // === СОБЫТИЯ ДЛЯ НАСЛЕДНИКОВ ===
-
-        /// <summary>Вызывается при изменении позиции</summary>
-        protected virtual void OnPositionChanged() { }
-
-        /// <summary>Вызывается при изменении цели</summary>
-        protected virtual void OnTargetChanged() { }
-
-        /// <summary>Вызывается при изменении матрицы вида</summary>
-        protected virtual void OnViewChanged() { }
-
-        /// <summary>Вызывается при изменении матрицы проекции</summary>
-        protected virtual void OnProjectionChanged() { }
-
-        /// <summary>Вызывается при изменении объединенной матрицы</summary>
-        protected virtual void OnViewProjectionChanged() { }
-
-        // === IDrawable реализация ===
-        public virtual void Draw(SpriteBatch spriteBatch)
-        {
-            // Камера по умолчанию не рисуется
-            // Можно переопределить для отладочной визуализации
-        }
-
+        // === РЕАЛИЗАЦИЯ IUpdatable и IDrawable МЕТОДОВ ===
         public void SetUpdateOrder(int order)
         {
-            throw new NotImplementedException();
-        }
-
-        public void SetVisible(bool visible)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
-        {
-            throw new NotImplementedException();
+            UpdateOrder = order;
         }
 
         public void SetDrawDepth(float depth)
         {
-            throw new NotImplementedException();
+            DrawDepth = depth;
+        }
+
+        public void SetVisible(bool visible)
+        {
+            Visible = visible;
+        }
+
+        // IDrawable.Draw(GameTime) - камера не рисуется, но метод должен быть
+        public virtual void Draw(GameTime gameTime)
+        {
+            // Камера не рисует себя по умолчанию
+            // Можно переопределить для отладочной визуализации
+        }
+
+        // IDrawable.Draw(GameTime, SpriteBatch) - для совместимости
+        public virtual void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+        {
+            Draw(gameTime); // Вызываем базовую версию
+        }
+
+        // === СОБЫТИЯ ДЛЯ НАСЛЕДНИКОВ ===
+        protected virtual void OnPositionChanged() { }
+        protected virtual void OnTargetChanged() { }
+        protected virtual void OnViewChanged() { }
+        protected virtual void OnProjectionChanged() { }
+        protected virtual void OnViewProjectionChanged() { }
+
+        // === УТИЛИТЫ ===
+        public Vector2 GetScreenPosition(Vector3 worldPosition)
+        {
+            // Преобразуем мировые координаты в проекционные
+            Vector3.Transform(ref worldPosition, ref _viewProjectionMatrix, out Vector3 result);
+
+            // Преобразуем в экранные координаты
+            return new Vector2(
+                (result.X + 1) * 0.5f * _viewportWidth,
+                (1 - result.Y) * 0.5f * _viewportHeight
+            );
+        }
+
+        public bool IsInView(Vector3 worldPosition)
+        {
+            Vector2 screenPos = GetScreenPosition(worldPosition);
+            return screenPos.X >= 0 && screenPos.X <= _viewportWidth &&
+                   screenPos.Y >= 0 && screenPos.Y <= _viewportHeight;
+        }
+
+        // === ДЛЯ ОТЛАДКИ ===
+        public override string ToString()
+        {
+            return $"Camera [Pos: {_position}, Target: {_target}, Viewport: {_viewportWidth}x{_viewportHeight}]";
         }
     }
 }

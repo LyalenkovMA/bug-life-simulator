@@ -309,7 +309,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             if (camera == null) return true;
 
             RectangleF bounds = GetBounds();
-            return camera.Bounds.Intersects(bounds);
+            return camera.Bounds.Contains(bounds);
         }
 
         // === Перемещение ===

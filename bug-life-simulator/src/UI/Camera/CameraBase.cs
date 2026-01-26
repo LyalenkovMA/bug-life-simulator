@@ -1,10 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Drawing;
 
 namespace TalesFromTheUnderbrush.src.UI.Camera
 {
@@ -19,6 +16,64 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
 
         private int _viewportWidth;
         private int _viewportHeight;
+
+        private int _updateOrder = 0;
+        private float _drawDepth = 0f;
+        private bool _visible = true;
+
+        public RectangleF Bounds
+        {
+            get
+            {
+                Vector3 topLeftWorld = ScreenToWorld(Vector2.Zero, 0);
+                Vector3 bottomRightWorld = ScreenToWorld(new Vector2(_viewportWidth, _viewportHeight), 0);
+                return new RectangleF(
+                    topLeftWorld.X,
+                    topLeftWorld.Y,
+                    bottomRightWorld.X - topLeftWorld.X,
+                    bottomRightWorld.Y - topLeftWorld.Y
+                );
+            }
+        }
+
+        public int UpdateOrder
+        {
+            get => _updateOrder;
+            protected set
+            {
+                if (_updateOrder != value)
+                {
+                    _updateOrder = value;
+                    UpdateOrderChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        public float DrawDepth
+        {
+            get => _drawDepth;
+            protected set
+            {
+                if (Math.Abs(_drawDepth - value) > float.Epsilon)
+                {
+                    _drawDepth = value;
+                    DrawDepthChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        public bool Visible
+        {
+            get => _visible;
+            protected set
+            {
+                if (_visible != value)
+                {
+                    _visible = value;
+                    VisibleChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
 
         public event EventHandler UpdateOrderChanged;
         public event EventHandler DrawDepthChanged;
@@ -113,12 +168,6 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
 
         /// <summary>Коэффициент плавности (0-1)</summary>
         protected float Smoothness { get; set; } = 0.85f;
-
-        public int UpdateOrder => throw new NotImplementedException();
-
-        public float DrawDepth => throw new NotImplementedException();
-
-        public bool Visible => throw new NotImplementedException();
 
         // === КОНСТРУКТОР ===
         protected CameraBase(int viewportWidth, int viewportHeight)

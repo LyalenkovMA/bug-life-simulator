@@ -18,17 +18,16 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         // === Размеры грида ===
         public int Width { get; private set; }
         public int Height { get; private set; }
-        public int Layers { get; private set; }
         public int Depth { get; private set; }
 
         public int ChunksWidth => _chunks.GetLength(0);
         public int ChunksHeight => _chunks.GetLength(1);
 
-        private SpriteBatch _currentSpriteBatch;
-        public float DrawOrder { get; set; } = 0; // Чанки отсортируют себя внутри
-        public bool Visible { get; set; } = true;
         public event EventHandler DrawOrderChanged;
         public event EventHandler VisibleChanged;
+        private SpriteBatch _currentSpriteBatch;
+        private float _drawOrder; // Чанки отсортируют себя внутри
+        private bool _visible= true;
 
         // === Грид тайлов ===
         private Tile[,,] _tiles;
@@ -44,11 +43,48 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         private readonly TileChunk[,] _chunks;
         private readonly int _chunkSize;
 
-
         // === События ===
         public event Action<Tile> TileAdded;
         public event Action<Tile> TileRemoved;
         public event Action<TileGrid> GridChanged;
+
+        public float DrawOrder
+        {
+            get => _drawOrder;
+            set
+            {
+                if (Math.Abs(_drawOrder - value) > 0.001f)
+                {
+                    _drawOrder = value;
+                    DrawOrderChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        public bool Visible
+        {
+            get => _visible;
+            set
+            {
+                if (_visible != value)
+                {
+                    _visible = value;
+                    VisibleChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        public RectangleF Bounds
+        {
+            get
+            {
+                return new RectangleF(
+                    0, 0,
+                    Width * Tile.TileSize.Width,
+                    Height * Tile.TileSize.Height
+                );
+            }
+        }
 
         // === Статистика ===
         public int TotalTiles { get; private set; }
@@ -98,7 +134,101 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// <summary>
         /// Создать и добавить тайл в указанную позицию
         /// </summary>
-        public T CreateTile<T>(int x, int y, int z = 0) where T : Tile, new()
+        public Tile CreateTile(int x, int y, int z, TileType type, Color? color = null)
+        {
+            if (!IsInBounds(x, y, z))
+                return null;
+
+            Tile tile = CreateTileByType(type, new Point(x, y), z);
+
+            if (tile == null)
+                return null;
+
+            // Устанавливаем цвет если указан
+            if (color.HasValue)
+            {
+                //tile.TintColor = color.Value;
+            }
+
+            // Устанавливаем свойства в зависимости от типа
+            ConfigureTileByType(tile, type);
+
+            // Добавляем в сетку
+            if (SetTile(x, y, z, tile))
+            {
+                return tile;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Создать конкретный тип тайла
+        /// </summary>
+        private Tile CreateTileByType(TileType type, Point position, int layer)
+        {
+            // Вам нужно создать конкретные классы для каждого типа тайла
+            // Это пример - создайте реальные классы в проекте
+
+            switch (type)
+            {
+                case TileType.Grass:
+                    return CreateConcreteTile<Tile>(type, position, layer);
+                case TileType.Dirt:
+                    return CreateConcreteTile<Tile>(type, position, layer);
+                case TileType.Stone:
+                    return CreateConcreteTile<Tile>(type, position, layer);
+                case TileType.Water:
+                    return CreateConcreteTile<Tile>(type, position, layer);
+                case TileType.Sand:
+                    return CreateConcreteTile<Tile>(type, position, layer);
+                default:
+                    return CreateConcreteTile<Tile>(TileType.Grass, position, layer);
+            }
+        }
+
+        /// <summary>
+        /// Настроить свойства тайла в зависимости от типа
+        /// </summary>
+        private void ConfigureTileByType(Tile tile, TileType type)
+        {
+            switch (type)
+            {
+                case TileType.Grass:
+                    //tile.IsWalkable = true;
+                    //tile.IsSolid = true;
+                    //tile.TintColor = Color.Green;
+                    break;
+                case TileType.Dirt:
+                    //tile.IsWalkable = true;
+                    //tile.IsSolid = true;
+                    //tile.TintColor = Color.SaddleBrown;
+                    break;
+                case TileType.Stone:
+                    //tile.IsWalkable = true;
+                    //tile.IsSolid = true;
+                    //tile.TintColor = Color.Gray;
+                    //tile.IsDestructible = true;
+                    tile.SetMaxDurability(200);
+                    break;
+                case TileType.Water:
+                    //tile.IsWalkable = false;
+                    //tile.IsSolid = false;
+                    //tile.IsTransparent = true;
+                    //tile.TintColor = Color.Blue;
+                    break;
+                case TileType.Sand:
+                    //tile.IsWalkable = true;
+                    //tile.IsSolid = true;
+                    //tile.TintColor = Color.SandyBrown;
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Создать и добавить тайл (обобщенная версия)
+        /// </summary>
+        public T CreateTile<T>(int x, int y, int z) where T : Tile, new()
         {
             if (!IsInBounds(x, y, z))
                 return null;
@@ -112,32 +242,13 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         }
 
         /// <summary>
-        /// Создать тайл с инициализацией
+        /// Создать конкретный экземпляр тайла (нужны реальные классы)
         /// </summary>
-        public Tile CreateTile(int x, int y, int z, TileType type, Color? color = null)
+        private T CreateConcreteTile<T>(TileType type, Point position, int layer) where T : Tile
         {
-            if (!IsInBounds(x, y, z))
-                return null;
-
-            Tile tile = type switch
-            {
-                TileType.Grass => new GrassTile(new Point(x, y), z),
-                //TileType.Dirt => new DirtTile(new Point(x, y), z),
-                //TileType.Stone => new StoneTile(new Point(x, y), z),
-                //TileType.Water => new WaterTile(new Point(x, y), z),
-                _ => new BasicTile(new Point(x, y), z)
-            };
-
-            if (color.HasValue)
-            {
-                tile.SetTintColor(color.Value);
-            }
-
-            if (SetTile(x, y, z, tile))
-            {
-                return tile;
-            }
-            return null;
+            // Временное решение - создаем простой тайл
+            // В реальном проекте создавайте: new GrassTile(), new StoneTile() и т.д.
+            return Activator.CreateInstance(typeof(T), position, layer) as T;
         }
 
         /// <summary>
@@ -421,17 +532,12 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             return new Point(gridPos.X / _chunkSize, gridPos.Y / _chunkSize);
         }
 
-        //    public Tile GetTopTile(int x, int y)
-        //    {
-        //        if (!IsInBounds(x, y))
-        //            return null;
-
-        //        int height = _heightMap[x, y];
-        //        return GetTile(x, y, height);
-        //    }
 
         /// <summary>
         /// Установить или удалить тайл по координатам. Главный метод для изменения сетки.
+        /// </summary>
+        /// <summary>
+        /// Установить тайл по координатам
         /// </summary>
         public bool SetTile(int x, int y, int z, Tile tile)
         {
@@ -440,36 +546,85 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
             // Получаем старый тайл
             Tile oldTile = _tiles[x, y, z];
-            TileChunk chunk = GetChunkAtWorldPos(x, y);
 
+            // Удаляем старый тайл из систем
             if (oldTile != null)
             {
-                // Удаляем старый тайл
-                RemoveTileInternal(oldTile, x, y, z);
+                RemoveTileFromSystems(oldTile, x, y, z);
             }
 
-            // Устанавливаем новый
+            // Устанавливаем новый тайл
             _tiles[x, y, z] = tile;
 
+            // Добавляем новый тайл в системы
             if (tile != null)
             {
-                // Устанавливаем позицию через внутренний метод
-                tile.SetPositionInternal(new Point(x, y), z);
-
-                // Добавляем в системы
-                AddTileInternal(tile, x, y, z);
+                AddTileToSystems(tile, x, y, z);
             }
 
             // Обновляем чанк
-            if (chunk != null)
-            {
-                int localX = x % _chunkSize;
-                int localY = y % _chunkSize;
-                chunk.SetTile(localX, localY, z, tile);
-            }
+            UpdateChunkTile(x, y, z, tile);
 
             GridChanged?.Invoke(this);
             return true;
+        }
+
+        private void AddTileToSystems(Tile tile, int x, int y, int z)
+        {
+            // Устанавливаем позицию
+            tile.SetPosition(new Point(x, y), z);
+
+            // Добавляем в SpatialGrid
+            RectangleF bounds = new RectangleF(
+                tile.WorldPosition.X - Tile.TileSize.Width / 2,
+                tile.WorldPosition.Y - Tile.TileSize.Height / 2,
+                Tile.TileSize.Width,
+                Tile.TileSize.Height
+            );
+            _spatialGrid.Add(tile, bounds);
+
+            TotalTiles++;
+            TileAdded?.Invoke(tile);
+
+            // Обновляем карту высот
+            if (z >= _heightMap[x, y])
+            {
+                _heightMap[x, y] = z;
+            }
+        }
+
+        private void RemoveTileFromSystems(Tile tile, int x, int y, int z)
+        {
+            // Удаляем из SpatialGrid
+            _spatialGrid.Remove(tile);
+
+            TotalTiles--;
+            TileRemoved?.Invoke(tile);
+            tile.Dispose();
+
+            // Обновляем карту высот если нужно
+            if (z == _heightMap[x, y])
+            {
+                // Ищем новый верхний тайл
+                for (int layer = z - 1; layer >= 0; layer--)
+                {
+                    if (_tiles[x, y, layer] != null)
+                    {
+                        _heightMap[x, y] = layer;
+                        break;
+                    }
+                }
+            }
+        }
+
+        private void UpdateChunkTile(int x, int y, int z, Tile tile)
+        {
+            var chunk = GetChunkAtWorldPos(x, y);
+            if (chunk == null) return;
+
+            int localX = x % _chunkSize;
+            int localY = y % _chunkSize;
+            chunk.SetTile(localX, localY, z, tile);
         }
 
         private void AddTileInternal(Tile tile, int x, int y, int z)
@@ -529,8 +684,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public void Draw(GameTime gameTime)
         {
             if (!Visible || _currentSpriteBatch == null) return;
-
-            // Используем перегрузку с SpriteBatch
             Draw(gameTime, _currentSpriteBatch);
         }
 
@@ -538,19 +691,16 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         {
             if (!Visible) return;
 
-            // Устанавливаем SpriteBatch для всех видимых чанков
-            // и делегируем отрисовку им
-            // В реальном сценарии здесь должна быть проверка видимости области (culling)
+            // Устанавливаем SpriteBatch для всех чанков
             foreach (TileChunk chunk in _chunks)
             {
                 if (chunk != null && chunk.Visible)
                 {
-                    // Передаём SpriteBatch в чанк для отрисовки его тайлов
                     if (chunk is IRequiresSpriteBatch chunkWithBatch)
                     {
                         chunkWithBatch.SetSpriteBatch(spriteBatch);
                     }
-                    chunk.Draw(gameTime); // Чанк реализует IDrawable
+                    chunk.Draw(gameTime);
                 }
             }
         }

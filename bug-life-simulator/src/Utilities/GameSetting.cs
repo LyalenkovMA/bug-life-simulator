@@ -36,6 +36,21 @@ namespace TalesFromTheUnderbrush
         public const float NeedsEnergyDrainRate = 0.05f;
         public const float NeedsMoodChangeRate = 0.02f;
 
+        // Размер верхней грани в пикселях (для логики)
+        public const int TileWidth = 128;
+        public const int TileHeight = 64;
+
+        // Высота "этажа" куба в пикселях (для иллюзии 3D)
+        public const int CubeHeight = 32;
+
+        // Размер спрайта в атласе (ваш случай)
+        public const int SpriteWidth = 738;
+        public const int SpriteHeight = 628;
+
+        // Смещение центра верхней грани относительно центра спрайта
+        public const int SpriteOriginX = SpriteWidth / 2;
+        public const int SpriteOriginY = TileHeight / 2; // Центр верхней грани
+
         public static readonly Vector2 TileSize = new Vector2(WorldTileWidth, WorldTileHeight);
 
         public static Vector2 TileToWorld(Vector2 tilePosition) => tilePosition * TileSize;

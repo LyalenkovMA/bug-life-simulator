@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
+using SharpDX.MediaFoundation;
 
 namespace TalesFromTheUnderbrush.src.UI.Camera
 {
@@ -8,6 +9,8 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         private float _zoom = 1.0f;
         private float _minZoom = 0.5f;
         private float _maxZoom = 3.0f;
+
+        private Vector2 _offset;
 
         public float Zoom
         {
@@ -18,6 +21,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         public Camera2_5D(int viewportWidth, int viewportHeight)
             : base(viewportWidth, viewportHeight)
         {
+            _offset = new Vector2(0, 0);
             // Камера для 2.5D игр
         }
 
@@ -52,13 +56,19 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
 
         private int _lastScrollValue = 0;
 
-        public override Vector2 WorldToScreen(Vector3 worldPosition)
+        public override Vector2 WorldToScreen(Vector3 worldPos)
         {
-            // Преобразование с учетом зума
-            Vector2 basePos = GetScreenPosition(worldPosition);
-            return (basePos - new Vector2(ViewportWidth / 2f, ViewportHeight / 2f)) / Zoom +
-                   new Vector2(ViewportWidth / 2f, ViewportHeight / 2f);
+            float tileWidth = 128f;
+            float tileHeight = 64f;
+            float verticalStep = 32f; // Высота "ступеньки" по Z
+
+            float screenX = (worldPos.X - worldPos.Y) * (tileWidth / 2);
+            float screenY = (worldPos.X + worldPos.Y) * (tileHeight / 2) - worldPos.Z * verticalStep;
+
+            return new Vector2(screenX, screenY) + _offset; // + смещение камеры
         }
+
+
 
         public override Vector3 ScreenToWorld(Vector2 screenPosition, float worldZ = 0)
         {

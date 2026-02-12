@@ -8,8 +8,8 @@ namespace TalesFromTheUnderbrush
         public const float WorldTileHeight = 64f;
         public const float WorldTileHalfWidth = WorldTileWidth / 2f;
         public const float WorldTileHalfHeight = WorldTileHeight / 2f;
-        public const int WorldChunkSize = 16;
-        public const float CharacterWorldGravity = 9.8f;
+        public const int WorldChunkSize = 64;      // Ширина/длина
+        public const int WorldChunkHeight = 32;    // Высота (Z)
 
         public const float CharacterMoveSpeed = 3.0f;
         public const float CharacterRunMultiplier = 1.5f;

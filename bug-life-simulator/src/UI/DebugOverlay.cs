@@ -95,7 +95,7 @@ namespace TalesFromTheUnderbrush.src.UI
             {
                 lines.Add($"Camera: {_camera.Position.X:F0},{_camera.Position.Y:F0},{_camera.Position.Z:F0}");
 
-                if (_camera is OrthographicCamera2_5D cam2_5D)
+                if (_camera is Camera2_5D cam2_5D)
                 {
                     lines.Add($"Zoom: {cam2_5D.Zoom:F2}x");
                 }

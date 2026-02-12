@@ -36,9 +36,7 @@ namespace TalesFromTheUnderbrush.src
             for (int y = 0; y < _cellsY; y++)
             {
                 for (int x = 0; x < _cellsX; x++)
-                {
                     _grid[x, y] = new List<T>();
-                }
             }
         }
 
@@ -53,14 +51,10 @@ namespace TalesFromTheUnderbrush.src
             List<Point> cells = GetCellsForBounds(bounds);
             _objectCells[obj] = cells;
 
-            foreach (var cell in cells)
-            {
+            foreach (Point cell in cells)
                 if (IsValidCell(cell))
-                {
                     _grid[cell.X, cell.Y].Add(obj);
-                }
-            }
-
+            
             Count++;
         }
 
@@ -72,14 +66,10 @@ namespace TalesFromTheUnderbrush.src
             if (obj == null || !_objectCells.TryGetValue(obj, out var cells))
                 return false;
 
-            foreach (Point cell in cells)
-            {
+            foreach (var cell in cells)
                 if (IsValidCell(cell))
-                {
                     _grid[cell.X, cell.Y].Remove(obj);
-                }
-            }
-
+            
             _objectCells.Remove(obj);
             Count--;
 
@@ -108,7 +98,7 @@ namespace TalesFromTheUnderbrush.src
             var result = new HashSet<T>();
             var cells = GetCellsForBounds(area);
 
-            foreach (var cell in cells)
+            foreach (Point cell in cells)
             {
                 if (IsValidCell(cell))
                 {
@@ -138,13 +128,9 @@ namespace TalesFromTheUnderbrush.src
         public void Clear()
         {
             for (int y = 0; y < _cellsY; y++)
-            {
                 for (int x = 0; x < _cellsX; x++)
-                {
                     _grid[x, y].Clear();
-                }
-            }
-
+            
             _objectCells.Clear();
             Count = 0;
         }
@@ -169,22 +155,15 @@ namespace TalesFromTheUnderbrush.src
             return cells;
         }
 
-        private bool IsValidCell(Point cell)
-        {
-            return cell.X >= 0 && cell.X < _cellsX &&
-                   cell.Y >= 0 && cell.Y < _cellsY;
-        }
-
+        private bool IsValidCell(Point cell)=> cell.X >= 0 && cell.X < _cellsX && cell.Y >= 0 && cell.Y < _cellsY;
+        
         public static implicit operator SpatialGrid<T>(SpatialGrid<Entity> v)
         {
             throw new NotImplementedException();
         }
 
-        public IEnumerable<T> QueryEntities(Rectangle area)
-        {
-            RectangleF rectF = new RectangleF(area.X, area.Y, area.Width, area.Height);
-            return Query(rectF);
-        }
+        public IEnumerable<T> QueryEntities(Rectangle area)=> Query(new RectangleF(area.X, area.Y, area.Width, area.Height));
+       
     }
 }
 

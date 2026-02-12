@@ -45,25 +45,12 @@ namespace TalesFromTheUnderbrush.src.Graphics
         public event EventHandler DrawOrderChanged;
         public event EventHandler VisibleChanged;
 
-        public virtual void Draw(GameTime gameTime)
-        {
-            // Базовая реализация
-        }
+        public abstract void Draw(GameTime gameTime); // Базовая реализация
 
-        public virtual void Draw(GameTime gameTime, SpriteBatch spriteBatch)
-        {
-            // Базовая реализация с SpriteBatch
-            Draw(gameTime);
-        }
+        public abstract void Draw(GameTime gameTime, SpriteBatch spriteBatch);// Базовая реализация с SpriteBatch
 
-        public void SetDrawOrder(float order)
-        {
-            DrawOrder = order;
-        }
-
-        public void SetVisible(bool visible)
-        {
-            Visible = visible;
-        }
+        public void SetDrawOrder(float order)=>DrawOrder = order;
+        
+        public void SetVisible(bool visible)=>Visible = visible;
     }
 }

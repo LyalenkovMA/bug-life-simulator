@@ -42,7 +42,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             else
             {
                 // Запасной вариант: цветной квадрат
-                var pixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
+                Texture2D pixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
                 pixel.SetData(new[] { TintColor });
 
                 spriteBatch.Draw(pixel,

@@ -28,8 +28,8 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         public override void Update(GameTime gameTime)
         {
             // Обработка ввода для перемещения камеры
-            var keyboard = Keyboard.GetState();
-            var mouse = Mouse.GetState();
+            KeyboardState keyboard = Keyboard.GetState();
+            MouseState mouse = Mouse.GetState();
 
             // Пример: перемещение стрелками
             Vector3 move = Vector3.Zero;
@@ -40,11 +40,8 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             if (keyboard.IsKeyDown(Keys.Up)) move.Y -= moveSpeed;
             if (keyboard.IsKeyDown(Keys.Down)) move.Y += moveSpeed;
 
-            if (move != Vector3.Zero)
-            {
-                Move(move);
-            }
-
+            if (move != Vector3.Zero) Move(move);
+            
             // Зум колесиком мыши
             if (mouse.ScrollWheelValue != _lastScrollValue)
             {
@@ -58,9 +55,9 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
 
         public override Vector2 WorldToScreen(Vector3 worldPos)
         {
-            float tileWidth = 128f;
-            float tileHeight = 64f;
-            float verticalStep = 32f; // Высота "ступеньки" по Z
+            float tileWidth = GameSetting.WorldTileWidth;
+            float tileHeight = GameSetting.WorldTileHeight;
+            float verticalStep = GameSetting.WorldChunkHeight; // Высота "ступеньки" по Z
 
             float screenX = (worldPos.X - worldPos.Y) * (tileWidth / 2);
             float screenY = (worldPos.X + worldPos.Y) * (tileHeight / 2) - worldPos.Z * verticalStep;
@@ -81,7 +78,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         protected override void UpdateViewMatrix()
         {
             // Кастомная матрица вида для 2.5D с учетом зума
-            var viewMatrix = Matrix.CreateLookAt(
+            Matrix viewMatrix = Matrix.CreateLookAt(
                 Position,
                 Target,
                 Vector3.Up);

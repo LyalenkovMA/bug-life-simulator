@@ -102,7 +102,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// </summary>
         public List<Tile> GetTilesInArea(Rectangle area)
         {
-            var result = new List<Tile>();
+            List<Tile> result = new List<Tile>();
 
             // Границы чанка в мировых координатах
             int chunkWorldX = Position.X * Size * Tile.TileSize.Width;
@@ -128,9 +128,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                 );
 
                 if (area.Intersects(tileRect))
-                {
                     result.Add(tile);
-                }
             }
 
             return result;
@@ -166,9 +164,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             int globalX = Position.X * Size + x;
             int globalY = Position.Y * Size + y;
 
-            return _tiles.FirstOrDefault(t =>
-                t.GridPosition.X == globalX &&
-                t.GridPosition.Y == globalY &&
+            return _tiles.FirstOrDefault(t => t.GridPosition.X == globalX && t.GridPosition.Y == globalY &&
                 t.Layer == z);
         }
 
@@ -325,14 +321,12 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             if (!Visible) return;
 
             // Отрисовываем все видимые тайлы
-            var sortedTiles = _tiles
-                .Where(t => t != null && t.Visible)
-                .OrderBy(t => t.DrawOrder);
+            List<Tile> sortedTiles = _tiles;
+                //.Where(t => t != null && t.Visible)
+                //.OrderBy(t => t.DrawOrder);
 
-            foreach (var tile in sortedTiles)
-            {
+            foreach (Tile tile in sortedTiles)
                 tile.Draw(gameTime, spriteBatch);
-            }
         }
     }
 }

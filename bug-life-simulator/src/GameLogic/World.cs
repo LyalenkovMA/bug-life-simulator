@@ -100,10 +100,8 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 return;
 
             // Вычисляем границы для SpatialGrid
-            var bounds = entity.GetBounds();
-            var rectangleF = new System.Drawing.RectangleF(
-                bounds.X, bounds.Y, bounds.Width, bounds.Height
-            );
+            RectangleF bounds = entity.GetBounds();
+            RectangleF rectangleF = new RectangleF(bounds.X, bounds.Y, bounds.Width, bounds.Height);
 
             // Добавляем в системы
             _spatialGrid.Add(entity, rectangleF);
@@ -151,31 +149,22 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public List<Entity> GetEntitiesInArea(Rectangle area)
         {
             // Преобразуем Rectangle в RectangleF для SpatialGrid
-            var rectF = new RectangleF(area.X, area.Y, area.Width, area.Height);
+            RectangleF rectF = new RectangleF(area.X, area.Y, area.Width, area.Height);
             return _spatialGrid.Query(rectF).Cast<Entity>().ToList();
         }
 
-        public List<Entity> GetEntitiesInArea(System.Drawing.RectangleF area)
+        public List<Entity> GetEntitiesInArea(RectangleF area)
         {
             return _spatialGrid.Query(area).Cast<Entity>().ToList();
         }
 
         // === Работа с тайлами ===
-        public Tile GetTileAt(int x, int y, int z = 0)
-        {
-            return _tileGrid?.GetTile(x, y, z);
-        }
+        public Tile GetTileAt(int x, int y, int z = 0)=>_tileGrid?.GetTile(x, y, z);
+        
 
-        public void SetTileAt(int x, int y, int z, Tile tile)
-        {
-            // Все операции через TileGrid
-            _tileGrid?.SetTile(x, y, z, tile);
-        }
+        public void SetTileAt(int x, int y, int z, Tile tile)=> _tileGrid?.SetTile(x, y, z, tile);// Все операции через TileGrid
 
-        public bool IsTileWalkable(int x, int y, int z = 0)
-        { // Используем TileGrid
-            return _tileGrid?.IsWalkable(x, y) ?? false;
-        }
+        public bool IsTileWalkable(int x, int y, int z = 0)=> _tileGrid?.IsWalkable(x, y) ?? false;// Используем TileGrid
 
         // === Обновление ===
         public void Update(GameTime gameTime)
@@ -195,9 +184,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
                     // Проверяем, нужно ли удалить сущность
                     if (entity.ShouldBeRemoved)
-                    {
                         RemoveEntity(entity);
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -240,40 +227,30 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                     {
                         // Для TileChunk нужен особый подход, так как он требует SpriteBatch
                         if (chunk is TileChunk tileChunk)
-                        {
                             tileChunk.SetSpriteBatch(spriteBatch);
-                        }
-
+                        
                         if (drawableChunk.Visible)
-                        {
                             drawableChunk.Draw(GameTimeWorld);
-                        }
                     }
                 }
             }
 
             // 2. Отрисовываем сущности в видимой области
             // Устанавливаем SpriteBatch для всех видимых сущностей
-            var visibleEntities = GetEntitiesInArea(visibleBounds);
+            List<Entity> visibleEntities = GetEntitiesInArea(visibleBounds);
 
-            foreach (var entity in visibleEntities)
+            foreach (Entity entity in visibleEntities)
             {
                 if (entity is IRequiresSpriteBatch requiresBatch)
-                {
                     requiresBatch.SetSpriteBatch(spriteBatch);
-                }
-
+                
                 if (entity.Visible)
-                {
                     entity.Draw(GameTimeWorld);
-                }
             }
 
             // 3. Отладочная информация
             if (GlobalSettings.DebugMode)
-            {
                 DrawDebugInfo(spriteBatch, visibleBounds);
-            }
         }
 
         // Перегруженный метод для отрисовки без камеры
@@ -286,18 +263,15 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
             // Отрисовываем все сущности
             foreach (var entity in _entities.Values.Where(e => e.IsVisible))
-            {
                 entity.Draw(GameTimeWorld);
-            }
         }
 
         // === Вспомогательные методы ===
         private Rectangle GetVisibleBounds(ICamera camera)
         {
-            if (camera == null)
-                return new Rectangle(0, 0, 800, 600); // Дефолтные размеры
+            if (camera == null) return new Rectangle(0, 0, 800, 600); // Дефолтные размеры
 
-            var cameraBounds = camera.Bounds;
+            RectangleF cameraBounds = camera.Bounds;
             return new Rectangle(
                 (int)cameraBounds.X,
                 (int)cameraBounds.Y,

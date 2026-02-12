@@ -141,33 +141,19 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         /// <summary>
         /// Основной метод отрисовки (из интерфейса IDrawable)
         /// </summary>
-        public virtual void Draw(GameTime gameTime)
-        {
-            // Базовая реализация - ничего не делает
-            // Наследники должны переопределить
-        }
-
+        public abstract void Draw(GameTime gameTime); // Базовая реализация - ничего не делает. Наследники должны переопределить
+        
         /// <summary>
         /// Дополнительный метод отрисовки с SpriteBatch (из интерфейса IDrawable)
         /// </summary>
-        public virtual void Draw(GameTime gameTime, SpriteBatch spriteBatch)
-        {
-            // По умолчанию просто вызываем основной метод
-            // Наследники могут переопределить для использования SpriteBatch
-            Draw(gameTime);
-        }
+        public abstract void Draw(GameTime gameTime, SpriteBatch spriteBatch);// По умолчанию просто вызываем основной метод. Наследники могут переопределить для использования SpriteBatch
+
 
         // === Базовые методы ===
-        public virtual void Initialize()
-        {
-            // Базовая реализация пустая
-        }
-
-        public virtual void Update(GameTime gameTime)
-        {
-            // Базовая реализация пустая
-        }
-
+        public abstract void Initialize();// Базовая реализация пустая
+        
+        public abstract void Update(GameTime gameTime);// Базовая реализация пустая
+        
         // === Публичные методы для изменения свойств ===
         public void SetName(string name)
         {
@@ -202,21 +188,13 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public void SetActive(bool active)
         {
             if (IsActive != active)
-            {
                 IsActive = active;
-            }
         }
 
-        public void SetVisible(bool visible)
-        {
-            Visible = visible;
-        }
+        public void SetVisible(bool visible)=>Visible = visible;
 
-        public void SetPersistent(bool persistent)
-        {
-            IsPersistent = persistent;
-        }
-
+        public void SetPersistent(bool persistent)=>IsPersistent = persistent;
+        
         // === Иерархия ===
         public void AddChild(Entity child)
         {
@@ -264,8 +242,8 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         {
             if (other == null) return false;
 
-            var bounds1 = GetCollisionBounds();
-            var bounds2 = other.GetCollisionBounds();
+            Rectangle bounds1 = GetCollisionBounds();
+            Rectangle bounds2 = other.GetCollisionBounds();
 
             return bounds1.Intersects(bounds2);
         }
@@ -313,16 +291,10 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         }
 
         // === Перемещение ===
-        public void Move(Vector2 delta)
-        {
-            SetPosition(Position + delta);
-        }
-
-        public void Move(float deltaX, float deltaY)
-        {
-            Move(new Vector2(deltaX, deltaY));
-        }
-
+        public void Move(Vector2 delta)=> SetPosition(Position + delta);
+        
+        public void Move(float deltaX, float deltaY)=>Move(new Vector2(deltaX, deltaY));
+        
         public void MoveToHeight(float targetHeight, float speed = 1f)
         {
             if (speed <= 0)

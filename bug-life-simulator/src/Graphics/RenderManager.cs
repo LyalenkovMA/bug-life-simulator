@@ -89,14 +89,8 @@ namespace TalesFromTheUnderbrush.src.Graphics
         }
 
         // Очистка очереди без отрисовки
-        public void ClearQueue()
-        {
-            _renderQueue.Clear();
-        }
+        public void ClearQueue()=>_renderQueue.Clear();
 
-        public void Dispose()
-        {
-            _spriteBatch?.Dispose();
-        }
+        public void Dispose()=>_spriteBatch?.Dispose();
     }
 }

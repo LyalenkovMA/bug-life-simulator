@@ -81,14 +81,12 @@ namespace TalesFromTheUnderbrush
         {
             // Загрузка контента для всех состояний
             foreach (var state in _states.Values)
-            {
                 state.LoadContent();
-            }
         }
 
         public void Update(GameTime gameTime)
         {
-            var currentKeyboard = Keyboard.GetState();
+            KeyboardState currentKeyboard = Keyboard.GetState();
             // Обновление текущего состояния
             if (_states.TryGetValue(_currentState, out var currentState))
             {
@@ -99,15 +97,13 @@ namespace TalesFromTheUnderbrush
                 // Проверка на смену состояния
                 var nextState = currentState.GetNextState();
                 if (nextState.HasValue && nextState.Value != _currentState)
-                {
                     ChangeState(nextState.Value);
-                }
-            }
+             }
 
             HandleDebugInput(); // Будет использовать _prevKeyboardState
 
             // Обновляем мир
-            _world?.Update(gameTime);
+            _world.Update(gameTime);
 
             // Сохраняем состояние клавиатуры
             _prevKeyboardState = currentKeyboard;
@@ -116,7 +112,7 @@ namespace TalesFromTheUnderbrush
         // В GameManager.Draw():
         public void Draw(GameTime gameTime)
         {
-            _graphicsDevice.Clear(Color.CornflowerBlue);
+            //_graphicsDevice.Clear(Color.CornflowerBlue);
             _spriteBatch.Begin();
 
             // Рисуем мир
@@ -126,24 +122,20 @@ namespace TalesFromTheUnderbrush
             // Отдельно рисуем UI
             //DrawUI();
 
-            //Draw(gameTime);
+            Draw(gameTime);
         }
 
         public void ChangeState(GameStateType newState)
         {
             // Уведомление о выходе из старого состояния
-            if (_states.TryGetValue(_currentState, out var oldState))
-            {
+            if (_states.TryGetValue(_currentState, out var oldState))  
                 oldState.OnExit();
-            }
 
             _currentState = newState;
 
             // Уведомление о входе в новое состояние
             if (_states.TryGetValue(_currentState, out var newStateObj))
-            {
                 newStateObj.OnEnter();
-            }
         }
 
         public void Dispose()

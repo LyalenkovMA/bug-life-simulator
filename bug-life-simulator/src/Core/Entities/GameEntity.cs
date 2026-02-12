@@ -39,19 +39,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             this.OnHeightChanged += (entity, oldH, newH) => UpdateDrawDepth();
         }
 
-        // === Реализация интерфейсов ===
-        public abstract void Update(GameTime gameTime);
-
-        // У GameEntity своя специфическая отрисовка с SpriteBatch
-        public override void Draw(GameTime gameTime)
-        {
-            // Базовая реализация - ничего не делает
-            // Наследники должны переопределить Draw(GameTime, SpriteBatch)
-        }
-
-        // Это основной метод для GameEntity
-        public abstract void Draw(GameTime gameTime, SpriteBatch spriteBatch);
-
         // === Утилиты ===
         protected virtual void UpdateDrawDepth()
         {

@@ -40,10 +40,8 @@ namespace TalesFromTheUnderbrush.src
 
             // Проверяем кэш
             if (typeDict.TryGetValue(assetPath, out var cachedAsset))
-            {
                 return (T)cachedAsset;
-            }
-
+            
             // Загружаем из ContentManager
             T asset = _content.Load<T>(assetPath);
 

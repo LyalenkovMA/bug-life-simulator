@@ -61,9 +61,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        public bool Visible
-        {
-            get => _visible;
+        public bool Visible {get => _visible;
             set
             {
                 if (_visible != value)
@@ -143,12 +141,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
             if (tile == null)
                 return null;
-
-            // Устанавливаем цвет если указан
-            if (color.HasValue)
-            {
-                //tile.TintColor = color.Value;
-            }
 
             // Устанавливаем свойства в зависимости от типа
             ConfigureTileByType(tile, type);

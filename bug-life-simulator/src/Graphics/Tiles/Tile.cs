@@ -65,7 +65,10 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public event Action<Tile> OnChanged;
 
         // === Статические размеры (одинаковые для всех тайлов) ===
-        public static Size TileSize { get; set; } = new Size(64, 64);
+        public static Size TileSize => new Size(
+     (int)GameSetting.WorldTileWidth,   // 128
+     (int)GameSetting.WorldTileHeight   // 64
+ );
 
         public virtual Vector2 TopFaceSize => new Vector2(GameSetting.WorldTileWidth, GameSetting.WorldTileHeight);  // Верхняя грань
         public virtual float Height => 32f;                          // Высота куба в пикселях

@@ -1,332 +1,135 @@
-﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using SharpDX.Direct3D9;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using Microsoft.Xna.Framework;
 using Point = Microsoft.Xna.Framework.Point;
-using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 {
     /// <summary>
-    /// Чанк тайлов для оптимизации рендеринга
+    /// Чанк тайлов — чистый 3D-контейнер данных.
+    /// Не отвечает за отрисовку. Только хранение и предоставление тайлов миру.
     /// </summary>
-    public class TileChunk : DrawableBase, IDisposable, IRequiresSpriteBatch
+    public class TileChunk : IDisposable
     {
-        public bool Visible
-        {
-            get => _visible;
-            set
-            {
-                if (_visible != value)
-                {
-                    _visible = value;
-                    VisibleChanged?.Invoke(this, EventArgs.Empty);
-                }
-            }
-        }
-        public float DrawOrder
-        {
-            get => _drawOrder;
-            set
-            {
-                if (_drawOrder != value)
-                {
-                    _drawOrder = value;
-                    DrawOrderChanged?.Invoke(this, EventArgs.Empty);
-                }
-            }
-        }
+        // === ПОЗИЦИЯ И РАЗМЕРЫ ===
+        public Point Position { get; }          // Позиция чанка в мировой сетке (в чанках)
+        public int Width { get; }               // Ширина чанка в тайлах (X)
+        public int Height { get; }              // Высота чанка в тайлах (Y)
+        public int Depth { get; }               // Глубина чанка в тайлах (Z)
 
-        public bool IsVisible
-        {
-            get => Visible;
-            set => Visible = value;
-        }
+        // === ФЛАГИ ===
+        public bool IsDirty { get; set; } = true; // Флаг изменения (для будущей оптимизации кэширования)
 
-        public event EventHandler DrawOrderChanged;
-        public event EventHandler VisibleChanged;
-        public event EventHandler DrawDepthChanged;
+        // === ХРАНЕНИЕ ТАЙЛОВ ===
+        private readonly Tile[,,] _tiles; // 3D-массив: [локальный X, локальный Y, локальный Z]
 
-        public Point Position { get; private set; }
-        public int Size { get; private set; }
-        public bool IsDirty { get; set; } = true;
-        private SpriteBatch _spriteBatch;
-        private bool _visible = true;
-        private float _drawOrder = 0;
-
-        private readonly List<Tile> _tiles = new();
-
-        // Если их нет, добавьте в начало класса:
-        private int _width, _height, _depth;
-        // Для хранения SpriteBatch (нужен для интерфейсного метода Draw)
-        private SpriteBatch _currentSpriteBatch;
-
-
-        public TileChunk(Point position, int size)
+        // === КОНСТРУКТОР ===
+        /// <summary>
+        /// Создаёт чанк заданного размера.
+        /// </summary>
+        /// <param name="position">Позиция чанка в мировой сетке (в чанках)</param>
+        /// <param name="width">Ширина в тайлах (рекомендуется 64)</param>
+        /// <param name="height">Высота в тайлах (рекомендуется 64)</param>
+        /// <param name="depth">Глубина в тайлах (рекомендуется 32)</param>
+        public TileChunk(Point position, int width, int height, int depth)
         {
             Position = position;
-            Size = size;
-            _width = size;
-            _height = size;
-            _depth = 1; // Или значение из конфигурации
-
-            // Инициализируем DrawOrder на основе позиции
-            DrawOrder = position.Y * 1000 + position.X;
+            Width = width;
+            Height = height;
+            Depth = depth;
+            _tiles = new Tile[width, height, depth];
         }
 
-        public int Width => _width;
-        public int Height => _height;
-        public int Depth => _depth;
-
-        // === Метод для установки SpriteBatch ===
-        public void SetSpriteBatch(SpriteBatch spriteBatch)
-        {
-            _spriteBatch = spriteBatch;
-
-            // Также устанавливаем SpriteBatch для всех тайлов
-            foreach (var tile in _tiles)
-            {
-                if (tile is IRequiresSpriteBatch requiresBatch)
-                {
-                    requiresBatch.SetSpriteBatch(spriteBatch);
-                }
-            }
-        }
-
-        public float DrawDepth => throw new NotImplementedException();
-
+        // === УСТАНОВКА/ПОЛУЧЕНИЕ ТАЙЛОВ ===
         /// <summary>
-        /// Получить все тайлы в области (прямоугольник в мировых координатах)
+        /// Устанавливает тайл в чанк по локальным координатам.
         /// </summary>
-        public List<Tile> GetTilesInArea(Rectangle area)
+        public void SetTile(int x, int y, int z, Tile tile)
         {
-            List<Tile> result = new List<Tile>();
+            if (x < 0 || x >= Width || y < 0 || y >= Height || z < 0 || z >= Depth)
+                return;
 
-            // Границы чанка в мировых координатах
-            int chunkWorldX = Position.X * Size * Tile.TileSize.Width;
-            int chunkWorldY = Position.Y * Size * Tile.TileSize.Height;
-            int chunkWorldWidth = Size * Tile.TileSize.Width;
-            int chunkWorldHeight = Size * Tile.TileSize.Height;
-
-            Rectangle chunkRect = new Rectangle(chunkWorldX, chunkWorldY, chunkWorldWidth, chunkWorldHeight);
-
-            // Если область не пересекается с чанком - возвращаем пустой список
-            if (!area.Intersects(chunkRect))
-                return result;
-
-            // Перебираем все тайлы чанка
-            foreach (Tile tile in _tiles)
-            {
-                // Проверяем, попадает ли тайл в область
-                Rectangle tileRect = new Rectangle(
-                    (int)tile.WorldPosition.X - Tile.TileSize.Width / 2,
-                    (int)tile.WorldPosition.Y - Tile.TileSize.Height / 2,
-                    Tile.TileSize.Width,
-                    Tile.TileSize.Height
-                );
-
-                if (area.Intersects(tileRect))
-                    result.Add(tile);
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Получить все тайлы чанка
-        /// </summary>
-        public IEnumerable<Tile> GetAllTiles()
-        {
-            //for (int x = 0; x < Width; x++)
-            //{
-            //    for (int y = 0; y < Height; y++)
-            //    {
-            //        for (int z = 0; z < Depth; z++)
-            //        {
-            //            var tile = GetTile(x, y, z);
-            //            if (tile != null)
-            //                yield return tile;
-            //        }
-            //    }
-            //}
-            return _tiles;
-
-        }
-
-        public Tile GetTile(int x, int y, int z)
-        {
-            // Ваша существующая реализация
-            if (x < 0 || x >= Size || y < 0 || y >= Size || z < 0 || z >= Depth)
-                return null;
-
-            int globalX = Position.X * Size + x;
-            int globalY = Position.Y * Size + y;
-
-            return _tiles.FirstOrDefault(t => t.GridPosition.X == globalX && t.GridPosition.Y == globalY &&
-                t.Layer == z);
-        }
-
-        public void AddTile(Tile tile)
-        {
-            if (tile != null && !_tiles.Contains(tile))
-            {
-                _tiles.Add(tile);
-                IsDirty = true;
-            }
-        }
-
-        public void RemoveTile(int x, int y, int z)
-        {
-            Tile tile = GetTile(x, y, z);
-            if (tile != null && _tiles.Remove(tile))
-            {
-                tile.Dispose();
-                IsDirty = true;
-            }
-        }
-
-        public void Clear()
-        {
-            foreach (Tile tile in _tiles)
-            {
-                tile.Dispose();
-            }
-            _tiles.Clear();
+            // Освобождаем старый тайл, если он был
+            _tiles[x, y, z]?.Dispose();
+            _tiles[x, y, z] = tile;
             IsDirty = true;
         }
 
-        public List<Tile> GetTiles()
+        /// <summary>
+        /// Получает тайл по локальным координатам.
+        /// </summary>
+        public Tile GetTile(int x, int y, int z)
         {
-            return new List<Tile>(_tiles);
-        }
+            if (x < 0 || x >= Width || y < 0 || y >= Height || z < 0 || z >= Depth)
+                return null;
 
-        public void DrawChunk(SpriteBatch spriteBatch)
-        {
-            _spriteBatch = spriteBatch;
-            // существующая логика отрисовки
-            if (!Visible) return;
-
-            var sortedTiles = _tiles.OrderBy(t => t.Layer).ThenBy(t => t.GridPosition.Y);
-            foreach (var tile in sortedTiles)
-            {
-                // отрисовка тайлов
-            }
-        }
-
-        public override void Draw(GameTime gameTime)
-        {
-            if (!Visible || _spriteBatch == null) return;
-            Draw(gameTime, _spriteBatch);
-        }
-
-        public void Draw(SpriteBatch spriteBatch)
-        {
-            if (!Visible || spriteBatch == null)
-                return;
-
-            // Сортируем тайлы для правильного порядка отрисовки
-            var sortedTiles = _tiles
-                .Where(t => t != null && t.Visible)
-                .OrderBy(t => t.Layer)
-                .ThenBy(t => t.GridPosition.Y)
-                .ThenBy(t => t.GridPosition.X);
-
-            foreach (Tile tile in sortedTiles)
-            {
-                // Временная отрисовка - простой прямоугольник
-                // ЗАМЕНИТЕ ЭТО на реальную отрисовку текстур
-                Rectangle tileRect = new Rectangle(
-                    (int)tile.WorldPosition.X - Tile.TileSize.Width / 2,
-                    (int)tile.WorldPosition.Y - Tile.TileSize.Height / 2,
-                    Tile.TileSize.Width,
-                    Tile.TileSize.Height
-                );
-
-                // Создаем временную текстуру для отрисовки
-                Texture2D pixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
-                pixel.SetData(new[] { Color.White });
-
-                // Рисуем прямоугольник (для теста)
-                spriteBatch.Draw(pixel, tileRect, Color.Gray * 0.5f);
-
-                // Рисуем рамку
-                DrawRectangle(spriteBatch, tileRect, Color.DarkGray, 1);
-
-                pixel.Dispose();
-            }
-        }
-
-        public Rectangle GetBounds()
-        {
-            int worldX = Position.X * Size * Tile.TileSize.Width;
-            int worldY = Position.Y * Size * Tile.TileSize.Height;
-            int worldWidth = Size * Tile.TileSize.Width;
-            int worldHeight = Size * Tile.TileSize.Height;
-
-            return new Rectangle(worldX, worldY, worldWidth, worldHeight);
+            return _tiles[x, y, z];
         }
 
         /// <summary>
-        /// Установить видимость чанка
+        /// Удаляет тайл по локальным координатам.
         /// </summary>
-        public void SetVisible(bool visible)=>IsVisible = visible;
-
-        public void Dispose()=> Clear();
-
-        internal void SetTile(int x, int y, int z, Tile tile)
+        public void RemoveTile(int x, int y, int z)
         {
-            // Ваша существующая реализация
-            if (x < 0 || x >= Size || y < 0 || y >= Size || z < 0 || z >= Depth)
+            if (x < 0 || x >= Width || y < 0 || y >= Height || z < 0 || z >= Depth)
                 return;
 
-            RemoveTile(x, y, z);
+            _tiles[x, y, z]?.Dispose();
+            _tiles[x, y, z] = null;
+            IsDirty = true;
+        }
 
-            if (tile != null)
+        // === ПЕРЕБОР ТАЙЛОВ ===
+        /// <summary>
+        /// Возвращает ВСЕ видимые тайлы чанка для отрисовки миром.
+        /// </summary>
+        public IEnumerable<Tile> GetAllVisibleTiles()
+        {
+            for (int x = 0; x < Width; x++)
             {
-                int globalX = Position.X * Size + x;
-                int globalY = Position.Y * Size + y;
-                tile.SetPosition(new Point(globalX, globalY), z);
-                _tiles.Add(tile);
-                IsDirty = true;
+                for (int y = 0; y < Height; y++)
+                {
+                    for (int z = 0; z < Depth; z++)
+                    {
+                        var tile = _tiles[x, y, z];
+                        if (tile != null && tile.Visible)
+                            yield return tile;
+                    }
+                }
             }
         }
 
-        public void SetDrawDepth(float depth)
+        /// <summary>
+        /// Возвращает ВСЕ тайлы чанка (включая невидимые) для обновления/логики.
+        /// </summary>
+        public IEnumerable<Tile> GetAllTiles()
         {
-            throw new NotImplementedException();
+            for (int x = 0; x < Width; x++)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    for (int z = 0; z < Depth; z++)
+                    {
+                        if (_tiles[x, y, z] != null)
+                            yield return _tiles[x, y, z];
+                    }
+                }
+            }
         }
 
-        // === Вспомогательный метод для отрисовки прямоугольника ===
-        private void DrawRectangle(SpriteBatch spriteBatch, Rectangle rect, Color color, int thickness)
+        // === ОЧИСТКА ===
+        /// <summary>
+        /// Очищает чанк и освобождает все тайлы.
+        /// </summary>
+        public void Clear()
         {
-            Texture2D pixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
-            pixel.SetData(new[] { Color.White });
+            foreach (Tile tile in GetAllTiles())
+                tile.Dispose();
 
-            // Верхняя линия
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, thickness), color);
-            // Нижняя линия
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - thickness, rect.Width, thickness), color);
-            // Левая линия
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, thickness, rect.Height), color);
-            // Правая линия
-            spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Y, thickness, rect.Height), color);
-
-            pixel.Dispose();
-        }      
-
-        public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
-        {
-            if (!Visible) return;
-
-            // Отрисовываем все видимые тайлы
-            List<Tile> sortedTiles = _tiles;
-                //.Where(t => t != null && t.Visible)
-                //.OrderBy(t => t.DrawOrder);
-
-            foreach (Tile tile in sortedTiles)
-                tile.Draw(gameTime, spriteBatch);
+            Array.Clear(_tiles, 0, _tiles.Length);
+            IsDirty = true;
         }
+
+        public void Dispose() => Clear();
     }
 }

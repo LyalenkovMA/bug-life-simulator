@@ -36,23 +36,15 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         protected GameEntity(string name = null) : base(name)
         {
             // Автоматически вычисляем глубину отрисовки на основе высоты
-            this.OnHeightChanged += (entity, oldH, newH) => UpdateDrawDepth();
+            OnHeightChanged += (entity, oldH, newH) => UpdateDrawDepth();
         }
 
         // === Утилиты ===
-        protected virtual void UpdateDrawDepth()
-        {
-            // Базовый расчет глубины: чем выше объект, тем позже рисуется
-            SetDrawDepth(0.5f + (GetWorldHeight() * 0.05f));
-        }
+        protected virtual void UpdateDrawDepth()=> SetDrawDepth(0.5f + (GetWorldHeight() * 0.05f));// Базовый расчет глубины: чем выше объект, тем позже рисуется
 
         // Методы для управления DrawOrder (наследуются от Entity)
-        public void SetDrawDepth(float depth)
-        {
-            // Используем protected setter из Entity
-            DrawOrder = depth;
-        }
-
+        public void SetDrawDepth(float depth)=>DrawOrder = depth;// Используем protected setter из Entity
+        
         public void SetVisible(bool visible)
         {
             Visible = visible;

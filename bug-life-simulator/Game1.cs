@@ -26,7 +26,7 @@ namespace TalesFromTheUnderbrush
         protected override void Initialize()
         {
             // Инициализация глобальных сервисов (через GlobalSettings)
-            _gameManager = new GameManager(_graphics);
+            _gameManager = new GameManager(_graphics, Content);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
             GlobalSettings.Initialize(Content, GraphicsDevice);
 

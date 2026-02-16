@@ -68,7 +68,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public virtual bool ShouldBeRemoved { get; protected set; } = false;
 
         // Ссылка на мир (будет устанавливаться World при добавлении)
-        public World World { get; set; }
+        public World World;
 
         // === Позиция (2D координаты + высота) ===
         private Vector2 _position;
@@ -180,10 +180,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             Depth = depth;
         }
 
-        public void SetSize(float size)
-        {
-            SetSize(size, size);
-        }
+        public void SetSize(float size)=> SetSize(size, size);
 
         public void SetActive(bool active)
         {
@@ -229,15 +226,8 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         }
 
         // === Коллизии ===
-        public virtual Rectangle GetCollisionBounds()
-        {
-            return new Rectangle(
-                (int)Position.X,
-                (int)Position.Y,
-                1, 1
-            );
-        }
-
+        public virtual Rectangle GetCollisionBounds()=> new Rectangle((int)Position.X,(int)Position.Y,1, 1);
+        
         public virtual bool CheckCollision(Entity other)
         {
             if (other == null) return false;
@@ -251,8 +241,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         // === Утилиты ===
         public Vector2 GetWorldPosition()
         {
-            if (Parent == null)
-                return Position;
+            if (Parent == null) return Position;
 
             return Parent.GetWorldPosition() + Position;
         }
@@ -274,6 +263,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public RectangleF GetBounds()
         {
             Vector2 worldPos = GetWorldPosition();
+
             return new RectangleF(
                 worldPos.X - Width / 2,
                 worldPos.Y - Depth / 2,
@@ -314,8 +304,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         // === Очистка ===
         public virtual void Dispose()
         {
-            if (IsDisposed)
-                return;
+            if (IsDisposed) return;
 
             IsDisposed = true;
             IsActive = false;

@@ -15,6 +15,11 @@ using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace TalesFromTheUnderbrush.src.GameLogic
 {
+    /// <summary>
+    /// Мир игры — центральный оркестратор рендеринга и обновления.
+    /// Отвечает за глобальную сортировку тайлов и сущностей для изометрической проекции.
+    /// Чанки и тайлы — чистые контейнеры данных без логики отрисовки.
+    /// </summary>
     public class World : IDisposable
     {
         // === Основные свойства ===
@@ -29,7 +34,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         // === Статистика ===
         public int EntityCount => _entities.Count;
         public int ActiveEntityCount => _entities.Values.Count(e => e.IsActive);
-        public int VisibleEntityCount => _entities.Values.Count(e => e.IsVisible);
+        public int VisibleEntityCount => _entities.Values.Count(e => e.Visible);
 
         // === События ===
         public event Action<Entity> EntityAdded;
@@ -43,148 +48,92 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 throw new ArgumentException("World name cannot be empty");
 
             Name = name;
-
-            // Инициализируем SpatialGrid с учетом размеров тайлов
             int worldWidthPixels = width * Tile.TileSize.Width;
             int worldHeightPixels = height * Tile.TileSize.Height;
             int cellSize = Math.Max(Tile.TileSize.Width, Tile.TileSize.Height);
 
             _spatialGrid = new SpatialGrid<Entity>(worldWidthPixels, worldHeightPixels, cellSize);
-
-            // Создаем TileGrid
-            _tileGrid = new TileGrid(width, height, 1, 16); // 1 слой, размер чанка 16
-
-            // Создаем несколько тестовых тайлов для визуализации
-            InitializeTestTiles(width, height);
-
-            Console.WriteLine($"[World] Создан мир '{name}' размером {width}x{height}");
+            _tileGrid = new TileGrid(width, height, 32, 16); // Глубина 32 для вертикального перемещения
         }
 
-        // === Инициализация тестовых тайлов ===
-        private void InitializeTestTiles(int width, int height)
+        /// <summary>
+        /// Инициализирует тестовые тайлы ПОСЛЕ загрузки контента.
+        /// Вызывать из GameManager.LoadContent() после загрузки атласа.
+        /// </summary>
+        public void InitializeTiles(Texture2D atlasTexture, Rectangle grassSourceRect, Rectangle dirtSourceRect)
         {
+            if (atlasTexture == null)
+                throw new ArgumentNullException(nameof(atlasTexture));
+
+            int width = _tileGrid.Width;
+            int height = _tileGrid.Height;
+
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
                 {
-                    TileType type = (x + y) % 2 == 0 ? TileType.Grass : TileType.Dirt;
-                    Color color = type == TileType.Grass ? Color.Green : Color.SaddleBrown;
+                    Tile tile = (x + y) % 2 == 0
+                        ? new GrassTile(new Point(x, y), 0, atlasTexture, grassSourceRect, true)
+                        : new GrassTile(new Point(x, y), 0, atlasTexture, dirtSourceRect, true);
 
-                    // Создаем через TileGrid
-                    _tileGrid.CreateTile(x, y, 0, type, color);
+                    _tileGrid.SetTile(x, y, 0, tile);
                 }
             }
-        }
 
-        // Временный метод для создания базового тайла
-        private Tile CreateBasicTile(int x, int y, int layer, TileType type)
-        {
-
-            // Создаем конкретный тип тайла
-            Tile tile = type switch
-            {
-                TileType.Grass => new GrassTile(new Point(x, y), layer),
-            //    TileType.Dirt => new DirtTile(new Point(x, y), layer), // Нужно создать
-            //    TileType.Water => new WaterTile(new Point(x, y), layer), // Нужно создать
-            //    TileType.Stone => new StoneTile(new Point(x, y), layer), // Нужно создать
-            //    _ => new GrassTile(new Point(x, y), layer) // По умолчанию
-            };
-
-            return tile;
+            Console.WriteLine($"[World] Инициализировано {width * height} тестовых тайлов");
         }
 
         // === Управление сущностями ===
         public void AddEntity(Entity entity)
         {
-            if (entity == null || _entities.ContainsKey(entity.Id))
-                return;
+            if (entity == null || _entities.ContainsKey(entity.Id)) return;
 
-            // Вычисляем границы для SpatialGrid
             RectangleF bounds = entity.GetBounds();
-            RectangleF rectangleF = new RectangleF(bounds.X, bounds.Y, bounds.Width, bounds.Height);
-
-            // Добавляем в системы
-            _spatialGrid.Add(entity, rectangleF);
+            _spatialGrid.Add(entity, new RectangleF(bounds.X, bounds.Y, bounds.Width, bounds.Height));
             _entities[entity.Id] = entity;
             entity.World = this;
-
-            // Уведомляем
             EntityAdded?.Invoke(entity);
-
             Console.WriteLine($"[World] Добавлена сущность: {entity.Name} (ID: {entity.Id})");
         }
 
-        public bool RemoveEntity(ulong entityId)
-        {
-            if (!_entities.TryGetValue(entityId, out var entity))
-                return false;
-
-            return RemoveEntity(entity);
-        }
-
+        public bool RemoveEntity(ulong entityId) => RemoveEntity(_entities.GetValueOrDefault(entityId));
         public bool RemoveEntity(Entity entity)
         {
-            if (entity == null || !_entities.ContainsKey(entity.Id))
-                return false;
-
-            // Удаляем из систем
+            if (entity == null || !_entities.ContainsKey(entity.Id)) return false;
             _spatialGrid.Remove(entity);
             _entities.Remove(entity.Id);
             entity.World = null;
-
-            // Уведомляем
             EntityRemoved?.Invoke(entity);
-
             Console.WriteLine($"[World] Удалена сущность: {entity.Name} (ID: {entity.Id})");
             return true;
         }
 
-        public Entity GetEntityById(ulong id)
-        {
-            _entities.TryGetValue(id, out var entity);
-            return entity;
-        }
+        public Entity GetEntityById(ulong id) => _entities.TryGetValue(id, out var entity) ? entity : null;
 
         // === Поиск сущностей ===
-        public List<Entity> GetEntitiesInArea(Rectangle area)
-        {
-            // Преобразуем Rectangle в RectangleF для SpatialGrid
-            RectangleF rectF = new RectangleF(area.X, area.Y, area.Width, area.Height);
-            return _spatialGrid.Query(rectF).Cast<Entity>().ToList();
-        }
+        public List<Entity> GetEntitiesInArea(Rectangle area) =>
+            _spatialGrid.Query(new RectangleF(area.X, area.Y, area.Width, area.Height)).Cast<Entity>().ToList();
 
-        public List<Entity> GetEntitiesInArea(RectangleF area)
-        {
-            return _spatialGrid.Query(area).Cast<Entity>().ToList();
-        }
+        public List<Entity> GetEntitiesInArea(RectangleF area) =>
+            _spatialGrid.Query(area).Cast<Entity>().ToList();
 
         // === Работа с тайлами ===
-        public Tile GetTileAt(int x, int y, int z = 0)=>_tileGrid?.GetTile(x, y, z);
-        
-
-        public void SetTileAt(int x, int y, int z, Tile tile)=> _tileGrid?.SetTile(x, y, z, tile);// Все операции через TileGrid
-
-        public bool IsTileWalkable(int x, int y, int z = 0)=> _tileGrid?.IsWalkable(x, y) ?? false;// Используем TileGrid
+        public Tile GetTileAt(int x, int y, int z = 0) => _tileGrid?.GetTile(x, y, z);
+        public void SetTileAt(int x, int y, int z, Tile tile) => _tileGrid?.SetTile(x, y, z, tile);
+        public bool IsTileWalkable(int x, int y, int z = 0) => _tileGrid?.IsWalkable(x, y) ?? false;
 
         // === Обновление ===
         public void Update(GameTime gameTime)
         {
             GameTimeWorld = gameTime;
+            _tileGrid?.Update(gameTime);
 
-            // Обновляем тайлы через TileGrid
-            _tileGrid.Update(gameTime);
-
-            // Обновляем все активные сущности
-            List<Entity> activeEntities = _entities.Values.Where(e => e.IsActive).ToList();
-            foreach (Entity entity in activeEntities)
+            foreach (var entity in _entities.Values.Where(e => e.IsActive).ToList())
             {
                 try
                 {
                     entity.Update(gameTime);
-
-                    // Проверяем, нужно ли удалить сущность
-                    if (entity.ShouldBeRemoved)
-                        RemoveEntity(entity);
+                    if (entity.ShouldBeRemoved) RemoveEntity(entity);
                 }
                 catch (Exception ex)
                 {
@@ -192,131 +141,128 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 }
             }
 
-            // Обновляем тайлы
-            _tileGrid?.Update(gameTime);
-
-            // Уведомляем подписчиков
             WorldUpdated?.Invoke(this);
         }
 
-        // === Отрисовка ===
+        // === ОСНОВНОЙ МЕТОД ОТРИСОВКИ ===
         public void Draw(SpriteBatch spriteBatch, ICamera camera = null)
         {
-            if (spriteBatch == null) return;
+            if (spriteBatch == null || _tileGrid == null) return;
 
-            if (camera == null)
+            if (camera != null)
             {
-                // Отрисовка без камеры (весь мир)
-                Draw(spriteBatch);
-                return;
+                DrawWithCamera(spriteBatch, camera);
+            }
+            else
+            {
+                // Режим отладки: отрисовка всего мира (только для небольших тестовых карт!)
+                DrawFullWorldDebug(spriteBatch);
+            }
+        }
+
+        // === Отрисовка с камерой (основной режим) ===
+        private void DrawWithCamera(SpriteBatch spriteBatch, ICamera camera)
+        {
+            // 1. Определяем видимую область в мировых координатах
+            Rectangle visibleBounds = new Rectangle(
+                (int)camera.Bounds.X,
+                (int)camera.Bounds.Y,
+                (int)camera.Bounds.Width,
+                (int)camera.Bounds.Height
+            );
+
+            // 2. Собираем ВСЕ видимые тайлы из ВИДИМЫХ чанков
+            List<Tile> visibleTiles = new List<Tile>();
+            List<TileChunk> visibleChunks = _tileGrid.GetChunksInArea(visibleBounds);
+
+            foreach (TileChunk chunk in visibleChunks)
+            {
+                if (chunk == null) continue;
+                // GetAllTiles() возвращает все тайлы чанка; фильтруем видимые
+                var tiles = chunk.GetAllTiles().Where(t => t != null && t.Visible);
+                visibleTiles.AddRange(tiles);
             }
 
-            // Получаем видимую область через камеру
-            Rectangle visibleBounds = GetVisibleBounds(camera);
+            // 3. ГЛОБАЛЬНАЯ СОРТИРОВКА ПО ГЛУБИНЕ (КРИТИЧНО ДЛЯ ИЗОМЕТРИИ!)
+            // Формула: (X + Y) * 100 + Z * 50 — гарантирует правильное наложение МЕЖДУ чанками
+            var sortedTiles = visibleTiles.OrderBy(tile =>
+                (tile.GridPosition.X + tile.GridPosition.Y) * 100 + tile.Layer * 50
+            );
 
-            // 1. Отрисовываем тайлы в видимой области
-            if (_tileGrid != null)
+            // 4. ОТРИСОВКА КАЖДОГО ТАЙЛА
+            foreach (Tile tile in sortedTiles)
             {
-                // Получаем видимые чанки
-                List<TileChunk> visibleChunks = _tileGrid.GetChunksInArea(visibleBounds);
-
-                // Устанавливаем SpriteBatch для чанков и отрисовываем
-                foreach (TileChunk chunk in visibleChunks)
-                {
-                    if (chunk is IDrawable drawableChunk)
-                    {
-                        // Для TileChunk нужен особый подход, так как он требует SpriteBatch
-                        if (chunk is TileChunk tileChunk)
-                            tileChunk.SetSpriteBatch(spriteBatch);
-                        
-                        if (drawableChunk.Visible)
-                            drawableChunk.Draw(GameTimeWorld);
-                    }
-                }
+                // ВРЕМЕННО: используем старый метод Draw (зависит от WorldPosition)
+                // В будущем: заменим на tile.DrawAtPosition(spriteBatch, screenPos, drawDepth)
+                tile.Draw(GameTimeWorld, spriteBatch);
             }
 
-            // 2. Отрисовываем сущности в видимой области
-            // Устанавливаем SpriteBatch для всех видимых сущностей
-            List<Entity> visibleEntities = GetEntitiesInArea(visibleBounds);
+            // 5. ОТРИСОВКА СУЩНОСТЕЙ В ВИДИМОЙ ОБЛАСТИ
+            //List<Entity> visibleEntities = GetEntitiesInArea(visibleBounds)
+            //    .Where(e => e.Visible && e is IDrawable)
+            //    .OrderBy(e => (e.Position.X + e.Position.Y) * 100 + e.Position.Z * 50); // Примерная сортировка
 
-            foreach (Entity entity in visibleEntities)
+            //foreach (Entity entity in visibleEntities)
+            //{
+            //    if (entity is IRequiresSpriteBatch requiresBatch)
+            //        requiresBatch.SetSpriteBatch(spriteBatch);
+            //    entity.Draw(GameTimeWorld);
+            //}
+
+            //// 6. ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
+            //if (GlobalSettings.DebugMode)
+            //    DrawDebugInfo(spriteBatch, visibleBounds, visibleTiles.Count, visibleEntities.Count());
+        }
+
+        // === Отрисовка всего мира (только для отладки небольших карт!) ===
+        private void DrawFullWorldDebug(SpriteBatch spriteBatch)
+        {
+            var allTiles = _tileGrid.GetAllTiles().Where(t => t != null && t.Visible);
+            var sortedTiles = allTiles.OrderBy(tile =>
+                (tile.GridPosition.X + tile.GridPosition.Y) * 100 + tile.Layer * 50
+            );
+
+            foreach (var tile in sortedTiles)
+                tile.Draw(GameTimeWorld, spriteBatch);
+
+            foreach (var entity in _entities.Values.Where(e => e.Visible && e is IDrawable))
             {
                 if (entity is IRequiresSpriteBatch requiresBatch)
                     requiresBatch.SetSpriteBatch(spriteBatch);
-                
-                if (entity.Visible)
-                    entity.Draw(GameTimeWorld);
+                entity.Draw(GameTimeWorld);
             }
 
-            // 3. Отладочная информация
             if (GlobalSettings.DebugMode)
-                DrawDebugInfo(spriteBatch, visibleBounds);
+                DrawDebugInfo(spriteBatch, new Rectangle(0, 0, 800, 600), allTiles.Count(), _entities.Values.Count(e => e.Visible));
         }
 
-        // Перегруженный метод для отрисовки без камеры
-        public void Draw(SpriteBatch spriteBatch)
+        // === Отладочная информация ===
+        private void DrawDebugInfo(SpriteBatch spriteBatch, Rectangle visibleBounds, int tileCount, int entityCount)
         {
-            if (spriteBatch == null) return;
-
-            // Отрисовываем все тайлы
-            _tileGrid?.Draw(spriteBatch);
-
-            // Отрисовываем все сущности
-            foreach (var entity in _entities.Values.Where(e => e.IsVisible))
-                entity.Draw(GameTimeWorld);
-        }
-
-        // === Вспомогательные методы ===
-        private Rectangle GetVisibleBounds(ICamera camera)
-        {
-            if (camera == null) return new Rectangle(0, 0, 800, 600); // Дефолтные размеры
-
-            RectangleF cameraBounds = camera.Bounds;
-            return new Rectangle(
-                (int)cameraBounds.X,
-                (int)cameraBounds.Y,
-                (int)cameraBounds.Width,
-                (int)cameraBounds.Height
-            );
-        }
-
-        private void DrawDebugInfo(SpriteBatch spriteBatch, Rectangle visibleBounds)
-        {
-            // Простая отладочная информация
-            string debugText = $"World: {Name}\n" +
-                             $"Entities: {EntityCount} (Active: {ActiveEntityCount}, Visible: {VisibleEntityCount})\n" +
-                             $"View: [{visibleBounds.X}, {visibleBounds.Y}] - [{visibleBounds.Right}, {visibleBounds.Bottom}]\n" +
+            string debugText = $"World: {Name} | " +
+                             $"Tiles: {tileCount} | " +
+                             $"Entities: {entityCount} | " +
+                             $"View: [{visibleBounds.X},{visibleBounds.Y}] | " +
                              $"Time: {GameTimeWorld?.TotalGameTime.TotalSeconds:F1}s";
-
-            // Здесь можно добавить отрисовку текста
-            // Для этого нужен SpriteFont, пока просто выводим в консоль
-            Console.WriteLine($"[DEBUG] {debugText.Replace("\n", " | ")}");
+            Console.WriteLine($"[DEBUG] {debugText}");
+            // В будущем: отрисовка текста через SpriteFont
         }
 
         // === Очистка ===
         public void Dispose()
         {
-            // Удаляем все сущности
-            foreach (Entity entity in _entities.Values.ToList())
+            foreach (var entity in _entities.Values.ToList())
             {
                 RemoveEntity(entity);
                 entity.Dispose();
             }
             _entities.Clear();
-
-            // Очищаем тайлы
             _tileGrid?.Dispose();
             _tileGrid = null;
-
-            // Очищаем SpatialGrid
             _spatialGrid = null;
-
             Console.WriteLine($"[World] Мир '{Name}' очищен");
         }
 
-        public override string ToString()
-        {
-            return $"World '{Name}' ({EntityCount} entities)";
-        }
+        public override string ToString() => $"World '{Name}' ({EntityCount} entities)";
     }
 }

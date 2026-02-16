@@ -24,18 +24,14 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public void SetTexture(Texture2D texture)
         {
             Texture = texture;
+
             if (texture != null)
-            {
                 Origin = new Vector2(texture.Width / 2f, texture.Height / 2f);
-            }
         }
 
         // Реализация IRequiresSpriteBatch
-        public void SetSpriteBatch(SpriteBatch spriteBatch)
-        {
-            CurrentSpriteBatch = spriteBatch;
-        }
-
+        public void SetSpriteBatch(SpriteBatch spriteBatch)=>CurrentSpriteBatch = spriteBatch;
+        
         public override void Draw(GameTime gameTime)
         {
             if (!Visible || CurrentSpriteBatch == null || Texture == null)

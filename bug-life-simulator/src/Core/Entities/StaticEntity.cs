@@ -63,10 +63,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         }
 
         // === Реализация GameEntity ===
-        public override void Update(GameTime gameTime)
-        {
-            // Статичные объекты обычно не обновляются
-        }
 
         public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {

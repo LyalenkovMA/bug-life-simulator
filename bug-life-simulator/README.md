@@ -116,28 +116,6 @@ dotnet run --project src/BugLifeSim.csproj
 
 Этот проект распространяется под лицензией **MIT**. Подробности в файле [LICENSE](LICENSE).
 
-```
-MIT License
-
-Copyright (c) 2024 [Ваше Имя]
-
-Разрешается свободное использование, копирование, изменение, объединение, публикация,
-распространение, сублицензирование и/или продажа копий программного обеспечения.
-```
-
-## 👥 **Авторы**
-
-- **Ляленков Михаил(https://github.com/yourusername)** — Lead Developer & Designer
-- *Место для будущих контрибьюторов*
-
-## 🌟 **Поддержка проекта**
-
-Если вам нравится проект:
-- ⭐ **Поставьте звезду** на GitHub
-- 📢 **Расскажите друзьям** о проекте
-- 💬 **Присоединяйтесь к обсуждению** в Discord/Telegram
-- ☕ [Купите мне кофе](https://buymeacoffee.com/yourusername) (опционально)
-
 ## 📞 **Контакты**
 
 - **GitHub:** [bug-life-simulator](https://github.com/LyalenkovMA/bug-life-simulator/tree/master/bug-life-simulator)

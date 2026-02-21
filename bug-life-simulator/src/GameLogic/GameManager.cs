@@ -25,6 +25,7 @@ namespace TalesFromTheUnderbrush
     public class GameManager : IDisposable
     {
         public Camera2_5D Camera { get; private set; }
+        public TestCamera CameraTest { get; private set; }
 
         private KeyboardState _prevKeyboardState;
         private MouseState _prevMouseState;
@@ -63,7 +64,7 @@ namespace TalesFromTheUnderbrush
             _world = new World("TestWorld", 30, 30);
 
             // Инициализируем камеру с правильными размерами
-            Camera = new Camera2_5D(
+            CameraTest = new TestCamera(
                 _graphics.PreferredBackBufferWidth,
                 _graphics.PreferredBackBufferHeight
             );
@@ -137,6 +138,8 @@ namespace TalesFromTheUnderbrush
             // 3. Обновление мира
             _world?.Update(gameTime);
 
+            CameraTest?.Update(gameTime);
+
             // 4. Отладочные команды
             HandleDebugInput(currentKeyboard);
 
@@ -163,7 +166,7 @@ namespace TalesFromTheUnderbrush
             if (moveDir != Vector2.Zero)
             {
                 moveDir.Normalize();
-                //Camera.Move(moveDir * moveSpeed);
+                CameraTest.Move(Vector3.Zero);
             }
 
             // Колесо мыши для зума
@@ -205,12 +208,12 @@ namespace TalesFromTheUnderbrush
                 SpriteSortMode.BackToFront,
                 BlendState.AlphaBlend,
                 SamplerState.PointClamp, // Для пиксель-арта без размытия
-                null, null, null
-                //Camera?.GetViewMatrix() ?? Matrix.Identity
+                null, null, null,
+                CameraTest?.GetViewMatrix() ?? Matrix.Identity
             );
 
             // 3. Отрисовка мира С КАМЕРОЙ (исправлено!)
-            _world.Draw(_spriteBatch, Camera);
+            _world.Draw(_spriteBatch, CameraTest);
 
             // 4. Отрисовка UI (временно)
             // DrawUI(_spriteBatch, gameTime);

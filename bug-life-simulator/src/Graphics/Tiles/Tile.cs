@@ -397,29 +397,33 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// Отрисовка тайла с ПЕРЕДАННОЙ экранной позицией.
         /// Вызывается из World.Draw() после вычисления позиции через камеру.
         /// </summary>
-        /// <param name="spriteBatch">Спрайтбатч для отрисовки</param>
-        /// <param name="screenPosition">Экранная позиция (вычислена через камеру)</param>
-        /// <param name="drawDepth">Глубина для сортировки (0.0–0.9999)</param>
         public virtual void DrawAtPosition(SpriteBatch spriteBatch, Vector2 screenPosition, float drawDepth)
         {
             if (!Visible || spriteBatch == null)
                 return;
 
-            // 1. Центрируем спрайт относительно клетки (верхняя грань 128×64)
+            // 1. Получаем источник текстуры (динамический размер из атласа)
+            Rectangle sourceRect = GetSourceRectangle();
+
+            // 2. === АВТОМАТИЧЕСКОЕ ЦЕНТРИРОВАНИЕ ===
+            // Позиция screenPosition — это центр ВЕРХНЕЙ ГРАНИ тайла (ромб 128×64)
+            // Спрайт в атласе может включать боковые грани, поэтому нужно сместить его
+
+            // Вычисляем смещение относительно верхней грани:
+            // - По X: центр спрайта должен совпасть с центром верхней грани
+            // - По Y: низ верхней грани должен быть на позиции screenPosition.Y
+
             Vector2 drawOffset = new Vector2(
-                -GameSetting.WorldTileHalfWidth,      // -64px по X
-                -GameSetting.WorldTileHeight * 0.25f  // -16px по Y для правильного наложения
+                -sourceRect.Width / 2f,                    // Центр спрайта по X
+                -sourceRect.Height + GameSetting.WorldTileHalfHeight  // Низ верхней грани по Y
             );
 
-            // 2. Вычисляем позицию отрисовки
+            // 3. Вычисляем позицию отрисовки
             Vector2 drawPosition = screenPosition + drawOffset;
-
-            // 3. Получаем источник текстуры (может быть переопределён в наследниках)
-            Rectangle sourceRect = GetSourceRectangle();
 
             // 4. Отрисовка
             spriteBatch.Draw(
-                texture: GetTexture(),           // Абстрактный метод — реализация в наследниках
+                texture: GetTexture(),
                 position: drawPosition,
                 sourceRectangle: sourceRect,
                 color: TintColor,

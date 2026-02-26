@@ -133,8 +133,8 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             screenY -= worldPosition.Z * GameSetting.IsometricLayerHeight;
 
             // Применяем зум и позицию камеры
-            screenX = (screenX - Position.X) * Zoom + ViewportWidth / 2f;
-            screenY = (screenY - Position.Y) * Zoom + ViewportHeight / 4f;
+            screenX = screenX * Zoom + ViewportWidth / 2f - Position.X;
+            screenY = screenY * Zoom + ViewportHeight / 4f - Position.Y;
 
             return new Vector2(screenX, screenY);
         }

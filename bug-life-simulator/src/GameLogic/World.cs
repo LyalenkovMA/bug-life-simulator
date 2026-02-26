@@ -60,8 +60,26 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         /// Инициализирует тестовые тайлы ПОСЛЕ загрузки контента.
         /// Вызывать из GameManager.LoadContent() после загрузки атласа.
         /// </summary>
-        public void InitializeTiles(Texture2D atlas, Rectangle grassRect, Rectangle dirtRect)
+        /// <summary>
+        /// Инициализирует тестовые тайлы ПОСЛЕ загрузки контента.
+        /// Вызывать из GameManager.LoadContent() после загрузки атласа.
+        /// </summary>
+        public void InitializeTiles(Texture2D atlas, int tilesPerRow, int tileRows)
         {
+            if (atlas == null)
+            {
+                Console.WriteLine("[World] Ошибка: атлас не загружен!");
+                return;
+            }
+
+            // === ДИНАМИЧЕСКИЙ РАСЧЁТ ИЗ АТЛАСА ===
+            int tileArtWidth = atlas.Width / tilesPerRow;
+            int tileArtHeight = atlas.Height / tileRows;
+
+            Console.WriteLine($"[World] Атлас: {atlas.Width}x{atlas.Height}");
+            Console.WriteLine($"[World] Тайл: {tileArtWidth}x{tileArtHeight}");
+            Console.WriteLine($"[World] Инициализация {_tileGrid.Width}x{_tileGrid.Height} тайлов");
+
             int width = _tileGrid.Width;
             int height = _tileGrid.Height;
 
@@ -69,9 +87,25 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             {
                 for (int y = 0; y < height; y++)
                 {
-                    Tile tile = (x + y) % 2 == 0
-                        ? new GrassTile(new Point(x, y), 0, atlas, grassRect, true)
-                        : new GrassTile(new Point(x, y), 0, atlas, dirtRect, true);
+                    // Вычисляем индекс тайла в атласе (шахматный порядок для теста)
+                    int tileIndex = (x + y) % (tilesPerRow * tileRows);
+                    int row = tileIndex / tilesPerRow;
+                    int col = tileIndex % tilesPerRow;
+
+                    Rectangle sourceRect = new Rectangle(
+                        col * tileArtWidth,
+                        row * tileArtHeight,
+                        tileArtWidth,
+                        tileArtHeight
+                    );
+
+                    Tile tile = new GrassTile(
+                        new Point(x, y),
+                        0,
+                        atlas,
+                        sourceRect,  // ← Динамически вычисленный!
+                        true
+                    );
 
                     _tileGrid.SetTile(x, y, 0, tile);
                 }
@@ -188,7 +222,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             // 4. ОТРИСОВКА КАЖДОГО ТАЙЛА
             foreach (Tile tile in sortedTiles)
             {
-                // 1. Вычисляем экранную позицию через камеру (ИЗОМЕТРИЯ!)
+                // 1. Вычисляем изометрическую позицию через камеру
                 Vector2 screenPos = camera.WorldToScreen(
                     new Vector3(tile.GridPosition.X, tile.GridPosition.Y, tile.Layer)
                 );

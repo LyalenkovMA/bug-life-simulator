@@ -57,7 +57,7 @@ namespace TalesFromTheUnderbrush
             _spriteBatch = spriteBatch;
 
             // Создаём мир ПОСЛЕ инициализации графики
-            _world = new World("TestWorld", 30,30);
+            _world = new World("TestWorld", 30, 30);
 
             // Инициализируем камеру с правильными размерами
             TestCamera = new TestCamera(
@@ -76,17 +76,22 @@ namespace TalesFromTheUnderbrush
 
         public void LoadContent()
         {
-            // Загружаем атлас (путь должен соответствовать структуре Content/)
+            // Загружаем атлас
             _grassAtlas = _assetManager.Load<Texture2D>("Tilesets/GrassTiles");
 
-            // Определяем области в атласе (пример для атласа 512x256 с тайлами 256x128)
-            _grassSourceRect = new Rectangle(0, 0, 256, (int)GameSetting.WorldTileWidth);   // Трава
-            _dirtSourceRect = new Rectangle(256, 0, 256, (int)GameSetting.WorldTileWidth);  // Грязь
+            // === ДИНАМИЧЕСКИЙ РАСЧЁТ РАЗМЕРОВ ИЗ АТЛАСА ===
+            const int TilesPerRow = 5;  // Известно из вашего атласа
+            const int TileRows = 2;     // Известно из вашего атласа
 
-            // Инициализируем тайлы в мире
-            _world?.InitializeTiles(_grassAtlas, _grassSourceRect, _dirtSourceRect);
+            int tileArtWidth = _grassAtlas.Width / TilesPerRow;   // 512 / 5 = 102px (или сколько у вас)
+            int tileArtHeight = _grassAtlas.Height / TileRows;    // 256 / 2 = 128px
 
-            // 2. Загрузка контента для всех состояний
+            Console.WriteLine($"[GameManager] Атлас: {_grassAtlas.Width}x{_grassAtlas.Height}");
+            Console.WriteLine($"[GameManager] Тайл в атласе: {tileArtWidth}x{tileArtHeight}");
+
+            // Передаём ТОЛЬКО атлас и конфигурацию в World
+            _world?.InitializeTiles(_grassAtlas, TilesPerRow, TileRows);
+
             foreach (IGameState state in _states.Values)
                 state.LoadContent();
         }
@@ -176,12 +181,12 @@ namespace TalesFromTheUnderbrush
 
             // 2. Начало отрисовки
             _spriteBatch.Begin(
-                SpriteSortMode.BackToFront,
-                BlendState.AlphaBlend,
-                SamplerState.PointClamp,
-                null, null, null,
-                TestCamera?.GetViewMatrix() ?? Matrix.Identity
-            );
+       SpriteSortMode.BackToFront,
+       BlendState.AlphaBlend,
+       SamplerState.PointClamp,
+       null, null, null,
+       Matrix.Identity  // ← БЕЗ матрицы камеры!
+   );
 
             // 3. Отрисовка мира с камерой
             _world.Draw(_spriteBatch, TestCamera);

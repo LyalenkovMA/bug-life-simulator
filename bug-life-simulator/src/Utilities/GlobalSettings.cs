@@ -19,7 +19,7 @@ namespace TalesFromTheUnderbrush
         public static int ScreenHeight { get; private set; } = 720;
 
         // Сервисы (инициализируются один раз в начале)
-        public static AssetManager Assets { get; private set; }
+        public static GameAssetManager Assets { get; private set; }
         public static RenderManager Renderer { get; private set; }
 
         /// <summary>Глобальный режим отладки</summary>
@@ -301,7 +301,7 @@ namespace TalesFromTheUnderbrush
         // Инициализация (вызывается из Game1.Initialize())
         public static void Initialize(ContentManager content, GraphicsDevice graphicsDevice)
         {
-            Assets = new AssetManager(content);
+            Assets = new GameAssetManager(content);
             Renderer = new RenderManager(graphicsDevice);
         }
 

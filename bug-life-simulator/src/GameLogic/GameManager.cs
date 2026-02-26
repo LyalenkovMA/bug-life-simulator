@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using TalesFromTheUnderbrush.src;
 using TalesFromTheUnderbrush.src.GameLogic;
-using TalesFromTheUnderbrush.src.Graphics;
 using TalesFromTheUnderbrush.src.UI.Camera;
 using TalesFromTheUnderbrush.tests;
 using Color = Microsoft.Xna.Framework.Color;
@@ -25,7 +24,7 @@ namespace TalesFromTheUnderbrush
     public class GameManager : IDisposable
     {
         public Camera2_5D Camera { get; private set; }
-        public TestCamera CameraTest { get; private set; }
+        public TestCamera TestCamera { get; private set; }
 
         private KeyboardState _prevKeyboardState;
         private MouseState _prevMouseState;
@@ -35,23 +34,20 @@ namespace TalesFromTheUnderbrush
         private SpriteBatch _spriteBatch;
         private GraphicsDevice _graphicsDevice;
         private GraphicsDeviceManager _graphics;
-        private ContentManager _contentManager;
-        private AssetManager _assetManager;
+        private readonly GameAssetManager _assetManager; // ← Создаётся внутри
 
         // Для загрузки текстур тайлов
         private Texture2D _grassAtlas;
         private Rectangle _grassSourceRect;
         private Rectangle _dirtSourceRect;
 
+        // КОНСТРУКТОР: принимаем ContentManager
         public GameManager(GraphicsDeviceManager graphics, ContentManager contentManager)
         {
-            _graphics = graphics;
+            _graphics = graphics ?? throw new ArgumentNullException(nameof(graphics));
+            _assetManager = new GameAssetManager(contentManager ?? throw new ArgumentNullException(nameof(contentManager)));
             _states = new Dictionary<GameStateType, IGameState>();
             _currentState = GameStateType.MainMenu;
-            _contentManager = contentManager;
-            _assetManager = new AssetManager(contentManager);
-
-            // УБРАНО: создание _world здесь — будет в Initialize
             InitializeStates();
         }
 
@@ -61,10 +57,10 @@ namespace TalesFromTheUnderbrush
             _spriteBatch = spriteBatch;
 
             // Создаём мир ПОСЛЕ инициализации графики
-            _world = new World("TestWorld", 30, 30);
+            _world = new World("TestWorld", 30,30);
 
             // Инициализируем камеру с правильными размерами
-            CameraTest = new TestCamera(
+            TestCamera = new TestCamera(
                 _graphics.PreferredBackBufferWidth,
                 _graphics.PreferredBackBufferHeight
             );
@@ -80,40 +76,19 @@ namespace TalesFromTheUnderbrush
 
         public void LoadContent()
         {
-            // 1. ЗАГРУЗКА АТЛАСА ТАЙЛОВ (временно закомментировано до реализации InitializeTiles в World)
-            try
-            {
-                // Загружаем атлас (путь должен соответствовать структуре Content/)
-                _grassAtlas = _assetManager.Load<Texture2D>("Tilesets/GrassTiles");
+            // Загружаем атлас (путь должен соответствовать структуре Content/)
+            _grassAtlas = _assetManager.Load<Texture2D>("Tilesets/GrassTiles");
 
+            // Определяем области в атласе (пример для атласа 512x256 с тайлами 256x128)
+            _grassSourceRect = new Rectangle(0, 0, 256, (int)GameSetting.WorldTileWidth);   // Трава
+            _dirtSourceRect = new Rectangle(256, 0, 256, (int)GameSetting.WorldTileWidth);  // Грязь
 
-                // Определяем области в атласе (пример для атласа 512x256 с тайлами 256x128)
-                _grassSourceRect = new Rectangle(0, 0, 256, 128);   // Трава в левом верхнем углу
-                _dirtSourceRect = new Rectangle(256, 0, 256, 128);  // Грязь в правом верхнем углу
-
-                Console.WriteLine("[GameManager] Атлас тайлов загружен успешно");
-
-                // ВРЕМЕННО: закомментировано до реализации InitializeTiles в World
-                _world?.InitializeTiles(_grassAtlas, _grassSourceRect, _dirtSourceRect);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GameManager] Ошибка загрузки атласа: {ex.Message}");
-                Console.WriteLine("Продолжаем с тестовыми цветными тайлами");
-            }
+            // Инициализируем тайлы в мире
+            _world?.InitializeTiles(_grassAtlas, _grassSourceRect, _dirtSourceRect);
 
             // 2. Загрузка контента для всех состояний
-            foreach (var state in _states.Values)
-            {
-                try
-                {
-                    state.LoadContent();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[GameManager] Ошибка загрузки состояния {state}: {ex.Message}");
-                }
-            }
+            foreach (IGameState state in _states.Values)
+                state.LoadContent();
         }
 
         public void Update(GameTime gameTime)
@@ -132,15 +107,16 @@ namespace TalesFromTheUnderbrush
                     ChangeState(nextState.Value);
             }
 
-            // 2. УПРАВЛЕНИЕ КАМЕРОЙ (добавлено!)
+            // 2. УПРАВЛЕНИЕ КАМЕРОЙ
             HandleCameraInput(currentKeyboard, currentMouse, gameTime);
 
             // 3. Обновление мира
             _world?.Update(gameTime);
 
-            CameraTest?.Update(gameTime);
+            // 4. Обновление камеры
+            TestCamera?.Update(gameTime);
 
-            // 4. Отладочные команды
+            // 5. Отладочные команды
             HandleDebugInput(currentKeyboard);
 
             // Сохраняем состояние для следующего кадра
@@ -151,12 +127,12 @@ namespace TalesFromTheUnderbrush
         // === УПРАВЛЕНИЕ КАМЕРОЙ ===
         private void HandleCameraInput(KeyboardState keyboard, MouseState mouse, GameTime gameTime)
         {
-            if (Camera == null) return;
+            if (TestCamera == null) return;
 
             float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            float moveSpeed = GameSetting.CameraMoveSpeed * 200f * delta; // Масштабируем для плавности
+            float moveSpeed = GameSetting.CameraMoveSpeed * 200f * delta;
 
-            // Стрелки / WASD для перемещения
+            // WASD для перемещения
             Vector2 moveDir = Vector2.Zero;
             if (keyboard.IsKeyDown(Keys.Left) || keyboard.IsKeyDown(Keys.A)) moveDir.X -= 1;
             if (keyboard.IsKeyDown(Keys.Right) || keyboard.IsKeyDown(Keys.D)) moveDir.X += 1;
@@ -166,7 +142,7 @@ namespace TalesFromTheUnderbrush
             if (moveDir != Vector2.Zero)
             {
                 moveDir.Normalize();
-                CameraTest.Move(Vector3.Zero);
+                TestCamera.Move(new Vector3(moveDir.X * moveSpeed, moveDir.Y * moveSpeed, 0));
             }
 
             // Колесо мыши для зума
@@ -174,22 +150,17 @@ namespace TalesFromTheUnderbrush
             if (scrollDelta != 0)
             {
                 float zoomDelta = scrollDelta > 0 ? GameSetting.CameraZoomSpeed : -GameSetting.CameraZoomSpeed;
-                //Camera.Zoom(zoomDelta);
+                // TestCamera.Zoom(zoomDelta); // Раскомментировать при реализации
             }
 
-            // ПКМ для перетаскивания камеры
-            if (mouse.RightButton == ButtonState.Pressed && _prevMouseState.RightButton == ButtonState.Released)
+            // ПКМ для перетаскивания
+            if (mouse.RightButton == ButtonState.Pressed && _prevMouseState.RightButton == ButtonState.Pressed)
             {
-                // Начало перетаскивания (можно добавить флаг в Camera)
-            }
-            else if (mouse.RightButton == ButtonState.Pressed && _prevMouseState.RightButton == ButtonState.Pressed)
-            {
-                // Перемещение камеры при удержании ПКМ
                 int dx = mouse.X - _prevMouseState.X;
                 int dy = mouse.Y - _prevMouseState.Y;
                 if (dx != 0 || dy != 0)
                 {
-                    //Camera.Move(new Vector2(-dx * 2, -dy * 2)); // Коэффициент для чувствительности
+                    TestCamera.Move(new Vector3(-dx * 2, -dy * 2, 0));
                 }
             }
         }
@@ -200,38 +171,33 @@ namespace TalesFromTheUnderbrush
             if (_graphicsDevice == null || _spriteBatch == null || _world == null)
                 return;
 
-            // 1. Очистка экрана (добавлено!)
-            _graphicsDevice.Clear(Color.CornflowerBlue); // Временный цвет фона
+            // 1. Очистка экрана
+            _graphicsDevice.Clear(Color.CornflowerBlue);
 
             // 2. Начало отрисовки
             _spriteBatch.Begin(
                 SpriteSortMode.BackToFront,
                 BlendState.AlphaBlend,
-                SamplerState.PointClamp, // Для пиксель-арта без размытия
+                SamplerState.PointClamp,
                 null, null, null,
-                CameraTest?.GetViewMatrix() ?? Matrix.Identity
+                TestCamera?.GetViewMatrix() ?? Matrix.Identity
             );
 
-            // 3. Отрисовка мира С КАМЕРОЙ (исправлено!)
-            _world.Draw(_spriteBatch, CameraTest);
+            // 3. Отрисовка мира с камерой
+            _world.Draw(_spriteBatch, TestCamera);
 
-            // 4. Отрисовка UI (временно)
-            // DrawUI(_spriteBatch, gameTime);
-
-            // 5. Завершение отрисовки
+            // 4. Завершение отрисовки
             _spriteBatch.End();
         }
 
         // === УПРАВЛЕНИЕ СОСТОЯНИЯМИ ===
         public void ChangeState(GameStateType newState)
         {
-            // Выход из текущего состояния
             if (_states.TryGetValue(_currentState, out var oldState))
                 oldState.OnExit();
 
             _currentState = newState;
 
-            // Вход в новое состояние
             if (_states.TryGetValue(_currentState, out var newStateObj))
                 newStateObj.OnEnter();
 
@@ -241,61 +207,37 @@ namespace TalesFromTheUnderbrush
         // === ОТЛАДОЧНЫЕ КОМАНДЫ ===
         private void HandleDebugInput(KeyboardState keyboard)
         {
-            // F1: режим отладки
             if (keyboard.IsKeyDown(Keys.F1) && _prevKeyboardState.IsKeyUp(Keys.F1))
                 GlobalSettings.ToggleDebugMode();
 
-            // F2: FPS
-            if (keyboard.IsKeyDown(Keys.F2) && _prevKeyboardState.IsKeyUp(Keys.F2))
-                GlobalSettings.ToggleDebugSetting("fps");
-
-            // F3: отображение тайлов
-            if (keyboard.IsKeyDown(Keys.F3) && _prevKeyboardState.IsKeyUp(Keys.F3))
-                GlobalSettings.ToggleDebugSetting("tiles");
-
-            // F4: SpatialGrid
-            if (keyboard.IsKeyDown(Keys.F4) && _prevKeyboardState.IsKeyUp(Keys.F4))
-                GlobalSettings.ToggleDebugSetting("grid");
-
-            // F5: информация о камере
             if (keyboard.IsKeyDown(Keys.F5) && _prevKeyboardState.IsKeyUp(Keys.F5))
             {
-                GlobalSettings.ToggleDebugSetting("camera");
+                if (TestCamera != null)
+                {
+                    Console.WriteLine($"[CAMERA] Pos: ({TestCamera.Position.X:F1}, {TestCamera.Position.Y:F1})");
+                }
             }
 
-            // F6: бог-режим
-            if (keyboard.IsKeyDown(Keys.F6) && _prevKeyboardState.IsKeyUp(Keys.F6))
-            {
-                GlobalSettings.GodMode = !GlobalSettings.GodMode;
-                Console.WriteLine($"[GameManager] GodMode = {GlobalSettings.GodMode}");
-            }
-
-            // F10: перезагрузка мира (для тестов)
             if (keyboard.IsKeyDown(Keys.F10) && _prevKeyboardState.IsKeyUp(Keys.F10))
             {
                 Console.WriteLine("[GameManager] Перезагрузка мира...");
                 _world?.Dispose();
                 _world = new World("TestWorld", 30, 30);
-                // Временно: повторная загрузка атласа не требуется, так как тайлы без текстур
             }
         }
 
         // === ОЧИСТКА РЕСУРСОВ ===
         public void Dispose()
         {
-            // Освобождение состояний
             foreach (var state in _states.Values)
             {
                 if (state is IDisposable disposable)
                     disposable.Dispose();
             }
 
-            // Освобождение мира
             _world?.Dispose();
-
-            // Освобождение текстур (если загружены)
             _grassAtlas?.Dispose();
-            _assetManager?.Dispose(); // Очистит кэш и освободит текстуры
+            _assetManager?.Dispose();
 
             Console.WriteLine("[GameManager] Все ресурсы освобождены");
         }

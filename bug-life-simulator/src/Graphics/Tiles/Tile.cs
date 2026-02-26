@@ -322,7 +322,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                 }
             }
         }
-        private bool _visible = true;
+        private bool _visible;
 
         public event EventHandler DrawOrderChanged;
         public event EventHandler VisibleChanged;
@@ -333,6 +333,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             Id = TileIdGenerator.Next();
             GridPosition = gridPosition;
             Layer = layer;
+            _visible = true;
 
             // Автоматически вычисляем DrawOrder на основе положения
             DrawOrder = layer * 1000 + gridPosition.Y * 10 + gridPosition.X;
@@ -391,6 +392,54 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         {
             UpdateAnimation(gameTime);
         }
+
+        /// <summary>
+        /// Отрисовка тайла с ПЕРЕДАННОЙ экранной позицией.
+        /// Вызывается из World.Draw() после вычисления позиции через камеру.
+        /// </summary>
+        /// <param name="spriteBatch">Спрайтбатч для отрисовки</param>
+        /// <param name="screenPosition">Экранная позиция (вычислена через камеру)</param>
+        /// <param name="drawDepth">Глубина для сортировки (0.0–0.9999)</param>
+        public virtual void DrawAtPosition(SpriteBatch spriteBatch, Vector2 screenPosition, float drawDepth)
+        {
+            if (!Visible || spriteBatch == null)
+                return;
+
+            // 1. Центрируем спрайт относительно клетки (верхняя грань 128×64)
+            Vector2 drawOffset = new Vector2(
+                -GameSetting.WorldTileHalfWidth,      // -64px по X
+                -GameSetting.WorldTileHeight * 0.25f  // -16px по Y для правильного наложения
+            );
+
+            // 2. Вычисляем позицию отрисовки
+            Vector2 drawPosition = screenPosition + drawOffset;
+
+            // 3. Получаем источник текстуры (может быть переопределён в наследниках)
+            Rectangle sourceRect = GetSourceRectangle();
+
+            // 4. Отрисовка
+            spriteBatch.Draw(
+                texture: GetTexture(),           // Абстрактный метод — реализация в наследниках
+                position: drawPosition,
+                sourceRectangle: sourceRect,
+                color: TintColor,
+                rotation: Rotation,
+                origin: Vector2.Zero,
+                scale: 1.0f,
+                effects: SpriteEffects.None,
+                layerDepth: drawDepth
+            );
+        }
+
+        /// <summary>
+        /// Получить текстуру тайла (реализуется в наследниках).
+        /// </summary>
+        protected virtual Texture2D GetTexture() => null;
+
+        /// <summary>
+        /// Получить источник текстуры (может быть переопределён в наследниках).
+        /// </summary>
+        protected virtual Rectangle GetSourceRectangle() => SourceRect;
 
         private void UpdateAnimation(GameTime gameTime)
         {

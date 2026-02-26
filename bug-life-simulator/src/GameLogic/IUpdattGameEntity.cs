@@ -1,15 +1,17 @@
 ﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using System;
 
 namespace TalesFromTheUnderbrush
 {
-    public interface IUpdatable
+    /// <summary>
+    /// Интерфейс для обновляемых объектов в игровом цикле.
+    /// </summary>
+    public interface IUpdattGameEntity
     {
         /// <summary>
         /// Приоритет обновления (меньше = раньше)
         /// </summary>
-        int UpdateOrder { get; }
+        int UpdateOrder { get; set; }
 
         /// <summary>
         /// Обновление состояния
@@ -20,6 +22,10 @@ namespace TalesFromTheUnderbrush
         /// Установить приоритет обновления
         /// </summary>
         void SetUpdateOrder(int order);
+
+        /// <summary>
+        /// Установить видимость
+        /// </summary>
         void SetVisible(bool visible);
 
         /// <summary>

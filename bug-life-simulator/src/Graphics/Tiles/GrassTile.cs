@@ -40,34 +40,23 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             SetSolidInternal(true);
         }
 
-        // === ОТРИСОВКА (временно 2D для отладки) ===
+        // === РЕАЛИЗАЦИЯ АБСТРАКТНЫХ МЕТОДОВ БАЗОВОГО КЛАССА ===
+        protected override Texture2D GetTexture() => _texture;
+        protected override Rectangle GetSourceRectangle() => _sourceRect;
+
+        // === ОТРИСОВКА (старый метод для совместимости) ===
         protected override void DrawTile(SpriteBatch spriteBatch, GameTime gameTime)
         {
-            if (_texture == null || !Visible || spriteBatch == null)
-                return;
-
-            // 1. Позиция: центрируем относительно клетки (временно 2D)
-            Vector2 drawPosition = new Vector2(
+            // Временно: используем WorldPosition для отладки
+            // Позже: World.Draw() будет вызывать DrawAtPosition() напрямую
+            Vector2 tempPosition = new Vector2(
                 WorldPosition.X - GameSetting.WorldTileHalfWidth,
                 WorldPosition.Y - GameSetting.WorldTileHeight / 2f
             );
+            float tempDepth = (GridPosition.X + GridPosition.Y) * 100 + Layer * 50;
+            tempDepth = MathHelper.Clamp(tempDepth / 10000f, 0f, 0.9999f);
 
-            // 2. Глубина для сортировки (нормализуем для SpriteBatch)
-            float drawDepth = (GridPosition.X + GridPosition.Y) * 100 + Layer * 50;
-            drawDepth = MathHelper.Clamp(drawDepth / 10000f, 0f, 0.9999f);
-
-            // 3. Отрисовка с ЛОКАЛЬНЫМ источником (не базовым SourceRect!)
-            spriteBatch.Draw(
-                texture: _texture,
-                position: drawPosition,
-                sourceRectangle: _sourceRect, // ← КЛЮЧЕВОЕ: используем свой источник
-                color: TintColor,
-                rotation: Rotation,
-                origin: Vector2.Zero,
-                scale: 1.0f,
-                effects: SpriteEffects.None,
-                layerDepth: drawDepth
-            );
-        }
+            DrawAtPosition(spriteBatch, tempPosition, tempDepth);
+        }       
     }
 }

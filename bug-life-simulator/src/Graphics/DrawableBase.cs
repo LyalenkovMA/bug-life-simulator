@@ -11,7 +11,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// <summary>
     /// Базовая реализация IDrawable с поддержкой событий
     /// </summary>
-    public abstract class DrawableBase : IDrawable, IHasDrawOrder, IHasVisibility
+    public abstract class DrawableBase : IRenderable, IHasDrawOrder, IHasVisibility
     {
         private float _drawOrder;
         private bool _visible = true;

@@ -6,33 +6,48 @@ using System.Drawing;
 using TalesFromTheUnderbrush.src.GameLogic;
 using TalesFromTheUnderbrush.src.Graphics;
 using TalesFromTheUnderbrush.src.UI.Camera;
-using IDrawable = TalesFromTheUnderbrush.src.Graphics.IDrawable;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace TalesFromTheUnderbrush.src.Core.Entities
 {
     /// <summary>
-    /// Минимальный базовый класс для ВСЕХ объектов в игре
-    /// Содержит только самое необходимое
-    /// Теперь полностью реализует IDrawable
+    /// Минимальный базовый класс для ВСЕХ объектов в игре.
+    /// Реализует IRenderable и IUpdattGameEntity для единой архитектуры.
     /// </summary>
-    public abstract class Entity : IDisposable, IDrawable
+    public abstract class Entity : IDisposable, IRenderable, IUpdattGameEntity
     {
         // === ID и имя ===
         private static ulong _nextId = 1;
-
         public ulong Id { get; }
         public string Name { get; private set; }
-        public string Tag { get; private set; } = string.Empty;
+        public string Tag { get; set; } = string.Empty;
 
-        // === Реализация IDrawable ===
-        private float _drawOrder;
+        // === IUpdattGameEntity ===
+        private int _updateOrder = 0;
+        public int UpdateOrder
+        {
+            get => _updateOrder;
+            set
+            {
+                if (_updateOrder != value)
+                {
+                    _updateOrder = value;
+                    UpdateOrderChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        public event EventHandler UpdateOrderChanged;
+        public void SetUpdateOrder(int order) => UpdateOrder = order;
+
+        // === IRenderable ===
+        private float _drawOrder = 0.5f;
         public float DrawOrder
         {
             get => _drawOrder;
-            protected set
+            set
             {
-                if (Math.Abs(_drawOrder - value) > 0.001f)
+                if (Math.Abs(_drawOrder - value) > float.Epsilon)
                 {
                     _drawOrder = value;
                     DrawOrderChanged?.Invoke(this, EventArgs.Empty);
@@ -44,7 +59,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public bool Visible
         {
             get => _visible;
-            protected set
+            set
             {
                 if (_visible != value)
                 {
@@ -56,26 +71,22 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
 
         public event EventHandler DrawOrderChanged;
         public event EventHandler VisibleChanged;
+        public void SetVisible(bool visible) => Visible = visible;
 
         // === Для обратной совместимости ===
         public virtual bool IsActive { get; set; } = true;
-        public bool IsVisible
-        {
-            get => Visible;
-            set => Visible = value;
-        }
-
+        public bool IsVisible => Visible;
         public virtual bool ShouldBeRemoved { get; protected set; } = false;
 
-        // Ссылка на мир (будет устанавливаться World при добавлении)
-        public World World;
+        // === Ссылка на мир ===
+        public World World { get; internal set; }
 
         // === Позиция (2D координаты + высота) ===
         private Vector2 _position;
         public Vector2 Position
         {
             get => _position;
-            private set
+            set
             {
                 if (_position != value)
                 {
@@ -88,11 +99,10 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         }
 
         private float _height;
-
         public float Height
         {
             get => _height;
-            private set
+            set
             {
                 if (_height != value)
                 {
@@ -105,15 +115,14 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         }
 
         // === Размеры ===
-        public float Width { get; private set; } = 1f;
-        public float Depth { get; private set; } = 1f;
+        public float Width { get; set; } = 1f;
+        public float Depth { get; set; } = 1f;
 
         // === Состояние ===
-        public bool IsPersistent { get; private set; } = true;
+        public bool IsPersistent { get; set; } = true;
         public bool IsDisposed { get; private set; }
 
-        // === Ссылки ===
-        public World GameWorld { get; internal set; }
+        // === Иерархия ===
         public Entity Parent { get; private set; }
         public List<Entity> Children { get; } = new();
 
@@ -130,43 +139,34 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             Id = _nextId++;
             Name = name ?? $"Entity_{Id}";
 
-            DrawOrder = Id / 1000000f;
+            // Автоматически вычисляем глубину отрисовки на основе позиции
+            UpdateDrawOrder();
 
             OnPositionChanged += (entity, oldPos, newPos) => UpdateDrawOrder();
             OnHeightChanged += (entity, oldHeight, newHeight) => UpdateDrawOrder();
         }
 
-        // === РЕАЛИЗАЦИЯ IDRAWABLE (ПОЛНАЯ) ===
+        // === IRenderable.Draw — переопределяется в наследниках ===
+        public abstract void Draw(GameTime gameTime);
+        public abstract void Draw(GameTime gameTime, SpriteBatch spriteBatch);
 
-        /// <summary>
-        /// Основной метод отрисовки (из интерфейса IDrawable)
-        /// </summary>
-        public abstract void Draw(GameTime gameTime); // Базовая реализация - ничего не делает. Наследники должны переопределить
-        
-        /// <summary>
-        /// Дополнительный метод отрисовки с SpriteBatch (из интерфейса IDrawable)
-        /// </summary>
-        public abstract void Draw(GameTime gameTime, SpriteBatch spriteBatch);// По умолчанию просто вызываем основной метод. Наследники могут переопределить для использования SpriteBatch
-
+        // === IUpdattGameEntity.Update — переопределяется в наследниках ===
+        public abstract void Update(GameTime gameTime);
 
         // === Базовые методы ===
-        public abstract void Initialize();// Базовая реализация пустая
-        
-        public abstract void Update(GameTime gameTime);// Базовая реализация пустая
-        
+        public virtual void Initialize() { }
+
         // === Публичные методы для изменения свойств ===
         public void SetName(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
                 return;
-
             Name = name;
         }
 
         public void SetTag(string tag) => Tag = tag ?? string.Empty;
 
         public void SetPosition(Vector2 position) => Position = position;
-
         public void SetPosition(float x, float y) => SetPosition(new Vector2(x, y));
 
         public void SetHeight(float height) => Height = height;
@@ -175,12 +175,11 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         {
             if (width <= 0 || depth <= 0)
                 throw new ArgumentException("Width and depth must be positive");
-
             Width = width;
             Depth = depth;
         }
 
-        public void SetSize(float size)=> SetSize(size, size);
+        public void SetSize(float size) => SetSize(size, size);
 
         public void SetActive(bool active)
         {
@@ -188,10 +187,8 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
                 IsActive = active;
         }
 
-        public void SetVisible(bool visible)=>Visible = visible;
+        public void SetPersistent(bool persistent) => IsPersistent = persistent;
 
-        public void SetPersistent(bool persistent)=>IsPersistent = persistent;
-        
         // === Иерархия ===
         public void AddChild(Entity child)
         {
@@ -215,9 +212,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             }
         }
 
-        /// <summary>
-        /// Пометить сущность для удаления
-        /// </summary>
+        // === Удаление ===
         public virtual void MarkForRemoval()
         {
             ShouldBeRemoved = true;
@@ -226,15 +221,14 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         }
 
         // === Коллизии ===
-        public virtual Rectangle GetCollisionBounds()=> new Rectangle((int)Position.X,(int)Position.Y,1, 1);
-        
+        public virtual Rectangle GetCollisionBounds() =>
+            new Rectangle((int)Position.X, (int)Position.Y, 1, 1);
+
         public virtual bool CheckCollision(Entity other)
         {
             if (other == null) return false;
-
             Rectangle bounds1 = GetCollisionBounds();
             Rectangle bounds2 = other.GetCollisionBounds();
-
             return bounds1.Intersects(bounds2);
         }
 
@@ -242,15 +236,12 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public Vector2 GetWorldPosition()
         {
             if (Parent == null) return Position;
-
             return Parent.GetWorldPosition() + Position;
         }
 
         public float GetWorldHeight()
         {
-            if (Parent == null)
-                return Height;
-
+            if (Parent == null) return Height;
             return Parent.GetWorldHeight() + Height;
         }
 
@@ -263,7 +254,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public RectangleF GetBounds()
         {
             Vector2 worldPos = GetWorldPosition();
-
             return new RectangleF(
                 worldPos.X - Width / 2,
                 worldPos.Y - Depth / 2,
@@ -275,21 +265,18 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public bool IsInView(ICamera camera)
         {
             if (camera == null) return true;
-
             RectangleF bounds = GetBounds();
             return camera.Bounds.Contains(bounds);
         }
 
         // === Перемещение ===
-        public void Move(Vector2 delta)=> SetPosition(Position + delta);
-        
-        public void Move(float deltaX, float deltaY)=>Move(new Vector2(deltaX, deltaY));
-        
+        public void Move(Vector2 delta) => SetPosition(Position + delta);
+        public void Move(float deltaX, float deltaY) => Move(new Vector2(deltaX, deltaY));
+
         public void MoveToHeight(float targetHeight, float speed = 1f)
         {
             if (speed <= 0)
                 throw new ArgumentException("Speed must be positive");
-
             float newHeight = MathHelper.Lerp(Height, targetHeight, speed);
             SetHeight(newHeight);
         }
@@ -298,6 +285,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         protected virtual void UpdateDrawOrder()
         {
             Vector2 worldPos = GetWorldPosition();
+            // Формула: чем выше и ниже по Y, тем позже рисуется
             DrawOrder = 0.5f + (GetWorldHeight() * 0.05f) + (worldPos.Y * 0.0001f);
         }
 
@@ -333,8 +321,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             OnDisposed = null;
             OnPositionChanged = null;
             OnHeightChanged = null;
-
-            // Очищаем события IDrawable
+            UpdateOrderChanged = null;
             DrawOrderChanged = null;
             VisibleChanged = null;
         }
@@ -343,7 +330,8 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public override string ToString()
         {
             Vector2 worldPos = GetWorldPosition();
-            return $"{GetType().Name} '{Name}' ({worldPos.X:F1}, {worldPos.Y:F1}, {GetWorldHeight():F1}) [Visible: {Visible}, DrawOrder: {DrawOrder:F3}]";
+            return $"{GetType().Name} '{Name}' ({worldPos.X:F1}, {worldPos.Y:F1}, {GetWorldHeight():F1}) " +
+                   $"[Visible: {Visible}, DrawOrder: {DrawOrder:F3}]";
         }
     }
 }

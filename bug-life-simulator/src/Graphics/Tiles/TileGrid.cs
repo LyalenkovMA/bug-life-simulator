@@ -32,19 +32,19 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public int TotalTiles { get; private set; }
 
         // === КОНСТРУКТОР ===
-        public TileGrid(int width, int height, int depth = 32, int chunkSize = 64)
+        public TileGrid(int width, int height)
         {
-            if (width <= 0 || height <= 0 || depth <= 0 || chunkSize <= 0)
+            if (width <= 0 || height <= 0 || GameSetting.WorldChunkHeight <= 0 || GameSetting.WorldChunkSize <= 0)
                 throw new ArgumentException("Dimensions must be positive");
 
             Width = width;
             Height = height;
-            Depth = depth;
-            ChunkSize = chunkSize;
+            Depth = GameSetting.WorldChunkHeight;
+            ChunkSize = GameSetting.WorldChunkSize;
 
             // Рассчитываем количество чанков
-            int chunksX = (int)Math.Ceiling((float)width / chunkSize);
-            int chunksY = (int)Math.Ceiling((float)height / chunkSize);
+            int chunksX = (int)Math.Ceiling((float)width / GameSetting.WorldChunkSize);
+            int chunksY = (int)Math.Ceiling((float)height / GameSetting.WorldChunkSize);
             _chunks = new TileChunk[chunksX, chunksY];
 
             // Инициализируем 3D-чанки
@@ -52,14 +52,14 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             {
                 for (int y = 0; y < chunksY; y++)
                 {
-                    int chunkWidth = Math.Min(chunkSize, width - x * chunkSize);
-                    int chunkHeight = Math.Min(chunkSize, height - y * chunkSize);
+                    int chunkWidth = Math.Min(GameSetting.WorldChunkSize, width - x * GameSetting.WorldChunkSize);
+                    int chunkHeight = Math.Min(GameSetting.WorldChunkSize, height - y * GameSetting.WorldChunkSize);
                     // Глубина чанка = глубина всего грида (для простоты)
-                    _chunks[x, y] = new TileChunk(new Point(x, y), chunkWidth, chunkHeight, depth);
+                    _chunks[x, y] = new TileChunk(new Point(x, y), chunkWidth, chunkHeight, GameSetting.WorldChunkHeight);
                 }
             }
 
-            Console.WriteLine($"[TileGrid] Создана сетка {width}x{height}x{depth}, чанков: {chunksX}x{chunksY}");
+            Console.WriteLine($"[TileGrid] Создана сетка {width}x{height}x{GameSetting.WorldChunkHeight}, чанков: {chunksX}x{chunksY}");
         }
 
         // === УПРАВЛЕНИЕ ТАЙЛАМИ ===
@@ -144,7 +144,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// </summary>
         public List<TileChunk> GetChunksInArea(Rectangle area)
         {
-            var chunks = new List<TileChunk>();
+            List<TileChunk> chunks = new List<TileChunk>();
 
             int startChunkX = Math.Max(0, area.X / ChunkSize);
             int startChunkY = Math.Max(0, area.Y / ChunkSize);
@@ -167,11 +167,11 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// </summary>
         public IEnumerable<Tile> GetAllTiles()
         {
-            foreach (var chunk in _chunks)
+            foreach (TileChunk chunk in _chunks)
             {
                 if (chunk != null)
                 {
-                    foreach (var tile in chunk.GetAllTiles())
+                    foreach (Tile tile in chunk.GetAllTiles())
                     {
                         yield return tile;
                     }
@@ -199,7 +199,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
             for (int z = Depth - 1; z >= 0; z--)
             {
-                var tile = GetTile(x, y, z);
+                Tile tile = GetTile(x, y, z);
                 if (tile != null) return tile;
             }
             return null;
@@ -237,7 +237,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// </summary>
         public void Update(GameTime gameTime)
         {
-            foreach (var tile in GetAllTiles())
+            foreach (Tile tile in GetAllTiles())
             {
                 tile?.Update(gameTime);
             }
@@ -246,7 +246,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         // === ОЧИСТКА ===
         public void Clear()
         {
-            foreach (var chunk in _chunks)
+            foreach (TileChunk chunk in _chunks)
             {
                 chunk?.Clear();
             }

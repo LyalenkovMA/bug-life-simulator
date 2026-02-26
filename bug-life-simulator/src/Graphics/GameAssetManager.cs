@@ -5,12 +5,12 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace TalesFromTheUnderbrush.src
 {
-    public class AssetManager : IDisposable
+    public class GameAssetManager : IDisposable
     {
         private readonly ContentManager _content;
         private readonly Dictionary<Type, Dictionary<string, object>> _assets;
 
-        public AssetManager(ContentManager content)
+        public GameAssetManager(ContentManager content)
         {
             _content = content ?? throw new ArgumentNullException(nameof(content));
             _assets = new Dictionary<Type, Dictionary<string, object>>();

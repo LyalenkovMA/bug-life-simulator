@@ -10,7 +10,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// Интерфейс для всех отрисовываемых объектов в игре
     /// Унифицирует систему отрисовки через GameManager и World
     /// </summary>
-    public interface IDrawable
+    public interface IRenderable
     {
         /// <summary>
         /// Порядок отрисовки (меньшее значение - рисуется раньше)
@@ -50,7 +50,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// <summary>
     /// Расширение интерфейса для объектов, требующих камеру
     /// </summary>
-    public interface IDrawableWithCamera : IDrawable
+    public interface IDrawableWithCamera : IRenderable
     {
         /// <summary>
         /// Отрисовка с учетом камеры
@@ -61,7 +61,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// <summary>
     /// Расширение для объектов с состоянием отрисовки
     /// </summary>
-    public interface IDrawableWithState : IDrawable
+    public interface IDrawableWithState : IRenderable
     {
         /// <summary>
         /// Состояние отрисовки (для оптимизации)
@@ -113,7 +113,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
         /// <summary>
         /// Сравнение по порядку отрисовки
         /// </summary>
-        public static int CompareByDrawOrder(IDrawable a, IDrawable b)
+        public static int CompareByDrawOrder(IRenderable a, IRenderable b)
         {
             if (a == null && b == null) return 0;
             if (a == null) return 1;
@@ -125,7 +125,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
         /// <summary>
         /// Установить порядок отрисовки с вызовом события
         /// </summary>
-        public static void SetDrawOrder(this IDrawable drawable, float order)
+        public static void SetDrawOrder(this IRenderable drawable, float order)
         {
             if (drawable is IHasDrawOrder hasDrawOrder)
             {
@@ -136,7 +136,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
         /// <summary>
         /// Установить видимость с вызовом события
         /// </summary>
-        public static void SetVisible(this IDrawable drawable, bool visible)
+        public static void SetVisible(this IRenderable drawable, bool visible)
         {
             if (drawable is IHasVisibility hasVisibility)
             {
@@ -147,7 +147,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
         /// <summary>
         /// Проверить, находится ли объект в области видимости камеры
         /// </summary>
-        public static bool IsInCameraView(this IDrawable drawable, ICamera camera)
+        public static bool IsInCameraView(this IRenderable drawable, ICamera camera)
         {
             if (camera == null || !drawable.Visible) return false;
 
@@ -163,7 +163,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// <summary>
     /// Интерфейс для объектов с изменяемым порядком отрисовки
     /// </summary>
-    public interface IHasDrawOrder : IDrawable
+    public interface IHasDrawOrder : IRenderable
     {
         /// <summary>
         /// Установить порядок отрисовки
@@ -174,7 +174,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// <summary>
     /// Интерфейс для объектов с изменяемой видимостью
     /// </summary>
-    public interface IHasVisibility : IDrawable
+    public interface IHasVisibility : IRenderable
     {
         /// <summary>
         /// Установить видимость
@@ -185,7 +185,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// <summary>
     /// Интерфейс для объектов с известными границами
     /// </summary>
-    public interface IHasBounds : IDrawable
+    public interface IHasBounds : IRenderable
     {
         /// <summary>
         /// Получить границы объекта
@@ -196,7 +196,7 @@ namespace TalesFromTheUnderbrush.src.Graphics
     /// <summary>
     /// Интерфейс для объектов, которым нужен SpriteBatch
     /// </summary>
-    public interface IRequiresSpriteBatch : IDrawable
+    public interface IRequiresSpriteBatch : IRenderable
     {
         /// <summary>
         /// Установить SpriteBatch для отрисовки

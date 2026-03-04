@@ -3,14 +3,8 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 
-
 namespace TalesFromTheUnderbrush.src.UI.Camera
 {
-    /// <summary>
-    /// Тестовая камера для отладки изометрического мира.
-    /// Свободное перемещение (WASD), зум (колесо мыши), перетаскивание (ПКМ).
-    /// Наследуется от CameraBase для единой архитектуры.
-    /// </summary>
     public class TestCamera : CameraBase
     {
         // === НАСТРОЙКИ УПРАВЛЕНИЯ ===
@@ -28,7 +22,6 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         public TestCamera(int viewportWidth, int viewportHeight)
             : base(viewportWidth, viewportHeight)
         {
-            // Инициализация настроек из GameSetting
             MoveSpeed = GameSetting.CameraMoveSpeed * 100f;
             ZoomSpeed = GameSetting.CameraZoomSpeed;
 
@@ -36,9 +29,9 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             _minZoom = GameSetting.CameraMinZoom;
             _maxZoom = GameSetting.CameraMaxZoom;
 
-            // Начальная позиция: центр вьюпорта
-            SetPosition(new Vector3(viewportWidth / 2f, viewportHeight / 2f, 500f));
-            SetTarget(new Vector3(viewportWidth / 2f, viewportHeight / 2f, 0f));
+            // === ИСПРАВЛЕНО: Начальная позиция = 0, 0, 500 ===
+            SetPosition(new Vector3(0, 0, 500f));  // ← ИЗМЕНЕНО (было viewportWidth/2)
+            SetTarget(new Vector3(0, 0, 0f));      // ← ИЗМЕНЕНО
 
             Console.WriteLine($"[TestCamera] Создана камера {viewportWidth}x{viewportHeight}");
         }
@@ -84,7 +77,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             }
         }
 
-        // === ЗУМ КОЛЕСОМ (ИСПОЛЬЗУЕТ БАЗОВЫЙ КЛАСС!) ===
+        // === ЗУМ КОЛЕСОМ ===
         private void HandleMouseZoom(MouseState mouse)
         {
             int scrollDelta = mouse.ScrollWheelValue - _prevMouseState.ScrollWheelValue;
@@ -92,7 +85,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             if (scrollDelta != 0)
             {
                 float zoomDelta = scrollDelta > 0 ? ZoomSpeed : -ZoomSpeed;
-                ZoomIn(zoomDelta); // ← Теперь работает! Метод из CameraBase
+                ZoomIn(zoomDelta);
             }
         }
 
@@ -128,27 +121,40 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         // === ИЗОМЕТРИЧЕСКАЯ ПРОЕКЦИЯ ===
         public override Vector2 WorldToScreen(Vector3 worldPosition)
         {
-            float screenX = (worldPosition.X - worldPosition.Y) * GameSetting.WorldTileHalfWidth;
-            float screenY = (worldPosition.X + worldPosition.Y) * GameSetting.WorldTileHalfHeight;
-            screenY -= worldPosition.Z * GameSetting.IsometricLayerHeight;
+            // 1. === ИСПРАВЛЕНО: Сначала применяем камеру в МИРОВОМ пространстве ===
+            float worldX = worldPosition.X - Position.X;
+            float worldY = worldPosition.Y - Position.Y;
+            float worldZ = worldPosition.Z;
 
-            // Применяем зум и позицию камеры
-            screenX = screenX * Zoom + ViewportWidth / 2f - Position.X;
-            screenY = screenY * Zoom + ViewportHeight / 4f - Position.Y;
+            // 2. Изометрическая формула для 128×64 тайлов
+            float screenX = (worldX - worldY) * GameSetting.WorldTileHalfWidth;
+            float screenY = (worldX + worldY) * GameSetting.WorldTileHalfHeight;
+            screenY -= worldZ * GameSetting.IsometricLayerHeight;
+
+            // 3. Зум и центрирование вьюпорта
+            screenX = screenX * Zoom + ViewportWidth / 2f;
+            screenY = screenY * Zoom + ViewportHeight / 4f;
 
             return new Vector2(screenX, screenY);
         }
 
         // === ОБРАТНАЯ ПРОЕКЦИЯ ===
+        // === ОБРАТНАЯ ПРОЕКЦИЯ ===
         public override Vector3 ScreenToWorld(Vector2 screenPosition, float worldZ = 0)
         {
-            float adjustedX = (screenPosition.X - ViewportWidth / 2f) / Zoom + Position.X;
-            float adjustedY = (screenPosition.Y - ViewportHeight / 4f) / Zoom + Position.Y;
+            // 1. Обратный порядок: сначала убираем зум и вьюпорт
+            float adjustedX = (screenPosition.X - ViewportWidth / 2f) / Zoom;
+            float adjustedY = (screenPosition.Y - ViewportHeight / 4f) / Zoom;
 
+            // 2. Обратная изометрическая формула
             float worldX = (adjustedX / GameSetting.WorldTileHalfWidth +
                            adjustedY / GameSetting.WorldTileHalfHeight) / 2;
             float worldY = (adjustedY / GameSetting.WorldTileHalfHeight -
                            adjustedX / GameSetting.WorldTileHalfWidth) / 2;
+
+            // 3. Добавляем позицию камеры
+            worldX += Position.X;
+            worldY += Position.Y;
 
             return new Vector3(worldX, worldY, worldZ);
         }

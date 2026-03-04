@@ -3,20 +3,25 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using TalesFromTheUnderbrush.src.Core.Entities;
 using TalesFromTheUnderbrush.src.Graphics;
+using Point = Microsoft.Xna.Framework.Point;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
+using RectangleF = Microsoft.Xna.Framework.Rectangle;
 
 namespace TalesFromTheUnderbrush.src.Core.Entities
 {
     /// <summary>
     /// Базовый класс для сущностей со спрайтовой графикой.
-    /// Не зависит от камеры — позиция вычисляется внешним рендерером (World).
+    /// Наследуется от Entity и реализует отрисовку через World.Draw().
+    /// Позиция вычисляется внешним рендерером (World), не зависит от камеры.
     /// </summary>
-    public abstract class SpriteEntity : StaticEntity
+    public abstract class SpriteEntity : Entity
     {
         // === ДАННЫЕ ДЛЯ РЕНДЕРИНГА ===
         private readonly Texture2D _texture;
         private Rectangle _sourceRect;
-        private Vector2 _origin;
-        private SpriteEffects _spriteEffects;
+        private Color _tintColor = Color.White;
+        private float _rotation = 0f;
+        private SpriteEffects _spriteEffects = SpriteEffects.None;
 
         // === АНИМАЦИЯ ===
         private bool _isAnimated;
@@ -24,6 +29,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         private float[] _frameDurations;
         private int _currentFrame;
         private float _frameTimer;
+        private bool _loopAnimation = true;
 
         // === КОНСТРУКТОР ===
         /// <summary>
@@ -32,26 +38,30 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         /// <param name="name">Имя сущности</param>
         /// <param name="texture">Текстура/атлас</param>
         /// <param name="sourceRect">Область в атласе</param>
-        /// <param name="position">Позиция в мире (X, Y)</param>
-        /// <param name="height">Высота по Z</param>
+        /// <param name="gridPosition">Позиция в сетке (X, Y)</param>
+        /// <param name="layer">Высота по Z (слой)</param>
+        /// <param name="depth">Глубина сущности (для коллизий)</param>
         protected SpriteEntity(
             string name,
             Texture2D texture,
             Rectangle sourceRect,
-            Vector2 position,
-            float height = 0f)
-            : base(name)
+            Point gridPosition,
+            int layer = 0,
+            float depth = 1f)
+            : base(depth, name)
         {
             _texture = texture ?? throw new ArgumentNullException(nameof(texture));
             _sourceRect = sourceRect;
-            _origin = new Vector2(sourceRect.Width / 2f, sourceRect.Height); // Нижняя центральная точка
-            _spriteEffects = SpriteEffects.None;
 
-            SetPosition(position);
-            SetHeight(height);
+            // Устанавливаем размеры спрайта для центрирования
+            SetSpriteSize(sourceRect.Width, sourceRect.Height);
+
+            // Устанавливаем позицию
+            SetGridPosition(gridPosition);
+            SetLayer(layer);
 
             // Автоматический расчёт глубины отрисовки
-            UpdateDrawDepth();
+            UpdateDrawOrder();
         }
 
         // === СВОЙСТВА ===
@@ -63,10 +73,16 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             set => _sourceRect = value;
         }
 
-        public Vector2 Origin
+        public Color TintColor
         {
-            get => _origin;
-            set => _origin = value;
+            get => _tintColor;
+            set => _tintColor = value;
+        }
+
+        public float Rotation
+        {
+            get => _rotation;
+            set => _rotation = value;
         }
 
         public SpriteEffects SpriteEffects
@@ -77,56 +93,41 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
 
         public bool IsAnimated => _isAnimated;
 
-        // === ОТРИСОВКА (основной метод IRenderable) ===
-        public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+        public bool IsAnimationFinished => !_loopAnimation && _currentFrame == _animationFrames?.Length - 1;
+
+        // === ОТРИСОВКА (реализация IRenderable) ===
+
+        /// <summary>
+        /// Реализация отрисовки сущности с переданной экранной позицией.
+        /// Вызывается из World.Draw() после вычисления позиции через камеру.
+        /// </summary>
+        protected override void DrawEntity(
+            SpriteBatch spriteBatch,
+            Vector2 screenPosition,
+            float drawDepth,
+            float zoom)
         {
             if (!Visible || !IsActive || spriteBatch == null || _texture == null)
                 return;
 
-            // Вычисляем глубину для сортировки (как в тайлах)
-            float drawDepth = CalculateDrawDepth();
-            drawDepth = MathHelper.Clamp(drawDepth, 0f, 0.9999f);
+            // 1. Вычисляем смещение для центрирования (по "ногам" сущности)
+            Vector2 drawOffset = CalculateEntityOffset(SpriteWidth, SpriteHeight, zoom);
 
-            // Вычисляем экранную позицию (будет переопределено в World.Draw для изометрии)
-            Vector2 screenPosition = GetScreenPosition();
+            // 2. Вычисляем позицию отрисовки
+            Vector2 drawPosition = screenPosition + drawOffset;
 
-            // Отрисовка спрайта
+            // 3. Отрисовка спрайта
             spriteBatch.Draw(
                 texture: _texture,
-                position: screenPosition,
+                position: drawPosition,
                 sourceRectangle: _sourceRect,
-                color: Color.White,
-                rotation: 0f,
-                origin: _origin,
-                scale: 1.0f,
+                color: _tintColor,
+                rotation: _rotation,
+                origin: Vector2.Zero,
+                scale: zoom,
                 effects: _spriteEffects,
                 layerDepth: drawDepth
             );
-        }
-
-        // === БАЗОВАЯ ОТРИСОВКА (без SpriteBatch) ===
-        public override void Draw(GameTime gameTime)
-        {
-            // Пустая реализация — спрайты требуют SpriteBatch
-        }
-
-        // === ВЫЧИСЛЕНИЕ ЭКРАННОЙ ПОЗИЦИИ ===
-        /// <summary>
-        /// Вычисляет экранную позицию для отрисовки.
-        /// Переопределяется в World.Draw для изометрической проекции.
-        /// </summary>
-        protected virtual Vector2 GetScreenPosition()
-        {
-            // Временно: 2D-позиция для отладки
-            // В изометрии: World вычислит через камеру.WorldToScreen()
-            return new Vector2(Position.X, Position.Y);
-        }
-
-        // === ВЫЧИСЛЕНИЕ ГЛУБИНЫ ===
-        protected virtual float CalculateDrawDepth()
-        {
-            // Формула как у тайлов: (X + Y) * 100 + Z * 50
-            return (Position.X + Position.Y) * 100 + Height * 50;
         }
 
         // === АНИМАЦИЯ ===
@@ -146,7 +147,11 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             _currentFrame = 0;
             _frameTimer = 0f;
             _isAnimated = true;
+            _loopAnimation = loop;
             _sourceRect = frames[0];
+
+            // Обновляем размеры спрайта для первого кадра
+            SetSpriteSize(frames[0].Width, frames[0].Height);
         }
 
         /// <summary>
@@ -162,22 +167,59 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             if (_frameTimer >= _frameDurations[_currentFrame])
             {
                 _frameTimer = 0f;
-                _currentFrame = (_currentFrame + 1) % _animationFrames.Length;
+                _currentFrame++;
+
+                // Проверка конца анимации
+                if (_currentFrame >= _animationFrames.Length)
+                {
+                    if (_loopAnimation)
+                    {
+                        _currentFrame = 0;
+                    }
+                    else
+                    {
+                        _currentFrame = _animationFrames.Length - 1;
+                    }
+                }
+
                 _sourceRect = _animationFrames[_currentFrame];
+            }
+        }
+
+        /// <summary>
+        /// Сбросить анимацию к первому кадру.
+        /// </summary>
+        public void ResetAnimation()
+        {
+            _currentFrame = 0;
+            _frameTimer = 0f;
+            if (_animationFrames != null && _animationFrames.Length > 0)
+            {
+                _sourceRect = _animationFrames[0];
             }
         }
 
         // === ОБНОВЛЕНИЕ ===
         public override void Update(GameTime gameTime)
         {
-            base.Update(gameTime);
-
             // Обновляем анимацию
             if (_isAnimated)
+            {
                 UpdateAnimation(gameTime);
+            }
 
             // Обновляем глубину отрисовки при изменении позиции
-            UpdateDrawDepth();
+            UpdateDrawOrder();
+        }
+
+        // === ИНИЦИАЛИЗАЦИЯ (обязательная реализация) ===
+        public override void Initialize()
+        {
+            // Базовая инициализация
+            IsActive = true;
+            Visible = true;
+
+            // Наследники могут переопределить для дополнительной инициализации
         }
 
         // === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
@@ -197,32 +239,34 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         /// </summary>
         public void SetTintColor(Color color)
         {
-            // Можно добавить поле _tintColor и использовать в Draw()
+            _tintColor = color;
+        }
+
+        /// <summary>
+        /// Устанавливает поворот спрайта.
+        /// </summary>
+        public void SetRotation(float rotation)
+        {
+            _rotation = rotation;
         }
 
         // === КОЛЛИЗИИ ===
-        public override CollisionBounds GetCollisionBounds()
+        public override GameRectangleF GetCollisionBounds()
         {
-            //Простая AABB коллизия на основе позиции и размера спрайта
-            return new CollisionBounds();
-        }
-
-        // === СЕРИАЛИЗАЦИЯ ===
-        public override void Load(PersistenceData data)
-        {
-            //base.Load(data);
-
-            //// Загрузка специфичных данных спрайта
-            //if (data.Properties.TryGetValue("SourceRect", out string rectStr))
-            //{
-            //    // Парсинг Rectangle из строки
-            //}
+            Point worldPos = GetWorldGridPosition();
+            return new GameRectangleF(
+                (int)(worldPos.X - BaseWidth / 2),
+                (int)(worldPos.Y - Depth / 2),
+                (int)BaseWidth,
+                (int)Depth
+            );
         }
 
         // === ОТЛАДОЧНАЯ ИНФОРМАЦИЯ ===
         public override string ToString()
         {
-            return $"SpriteEntity '{Name}' at ({Position.X:F1}, {Position.Y:F1}, {Height:F1}) " +
+            Point worldPos = GetWorldGridPosition();
+            return $"SpriteEntity '{Name}' at ({worldPos.X}, {worldPos.Y}, {GetWorldLayer()}) " +
                    $"[Visible: {Visible}, DrawOrder: {DrawOrder:F3}, Animated: {_isAnimated}]";
         }
     }

@@ -21,81 +21,117 @@ namespace TalesFromTheUnderbrush
         Settings
     }
 
+    /// <summary>
+    /// Главный менеджер игры — оркестрирует все системы.
+    /// Отвечает за: графику, камеру, мир, состояния игры, ввод.
+    /// </summary>
     public class GameManager : IDisposable
     {
+        // === КАМЕРЫ ===
         public Camera2_5D Camera { get; private set; }
         public TestCamera TestCamera { get; private set; }
 
+        // === СОСТОЯНИЯ ===
         private KeyboardState _prevKeyboardState;
         private MouseState _prevMouseState;
         private GameStateType _currentState;
         private readonly Dictionary<GameStateType, IGameState> _states;
+
+        // === МИР ===
         private World _world;
+
+        // === ГРАФИКА ===
         private SpriteBatch _spriteBatch;
         private GraphicsDevice _graphicsDevice;
         private GraphicsDeviceManager _graphics;
-        private readonly GameAssetManager _assetManager; // ← Создаётся внутри
 
-        // Для загрузки текстур тайлов
+        // === РЕСУРСЫ ===
+        private readonly GameAssetManager _assetManager;
         private Texture2D _grassAtlas;
-        private Rectangle _grassSourceRect;
-        private Rectangle _dirtSourceRect;
 
-        // КОНСТРУКТОР: принимаем ContentManager
+        // === КОНСТРУКТОР ===
         public GameManager(GraphicsDeviceManager graphics, ContentManager contentManager)
         {
             _graphics = graphics ?? throw new ArgumentNullException(nameof(graphics));
             _assetManager = new GameAssetManager(contentManager ?? throw new ArgumentNullException(nameof(contentManager)));
             _states = new Dictionary<GameStateType, IGameState>();
             _currentState = GameStateType.MainMenu;
+
             InitializeStates();
         }
 
+        // === ИНИЦИАЛИЗАЦИЯ ===
         public void Initialize(GraphicsDevice graphicsDevice, SpriteBatch spriteBatch)
         {
             _graphicsDevice = graphicsDevice;
             _spriteBatch = spriteBatch;
 
-            // Создаём мир ПОСЛЕ инициализации графики
+            // === НАСТРОЙКА ГРАФИКИ ===
+            _graphics.IsFullScreen = GlobalSettings.FullScreen;
+
+            if (GlobalSettings.FullScreen)
+            {
+                // Полноэкранный режим: нативное разрешение монитора
+                _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+                _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+            }
+            else
+            {
+                // Оконный режим: стандартное разрешение
+                _graphics.PreferredBackBufferWidth = GlobalSettings.ScreenWidth;   // 1280
+                _graphics.PreferredBackBufferHeight = GlobalSettings.ScreenHeight; // 720
+            }
+
+            _graphics.ApplyChanges();
+
+            // === СОЗДАНИЕ МИРА ===
             _world = new World("TestWorld", 30, 30);
 
-            // Инициализируем камеру с правильными размерами
+            // === СОЗДАНИЕ КАМЕРЫ ===
             TestCamera = new TestCamera(
                 _graphics.PreferredBackBufferWidth,
                 _graphics.PreferredBackBufferHeight
             );
 
-            Console.WriteLine("[GameManager] Инициализация завершена");
+            Console.WriteLine($"[GameManager] Инициализация завершена | " +
+                             $"Fullscreen: {GlobalSettings.FullScreen} | " +
+                             $"Resolution: {_graphics.PreferredBackBufferWidth}x{_graphics.PreferredBackBufferHeight}");
         }
 
+        // === ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЙ ===
         private void InitializeStates()
         {
             _states[GameStateType.MainMenu] = new TestState();
             // Добавьте остальные состояния по мере готовности
         }
 
+        // === ЗАГРУЗКА КОНТЕНТА ===
         public void LoadContent()
         {
-            // Загружаем атлас
+            // === ЗАГРУЗКА АТЛАСА ===
             _grassAtlas = _assetManager.Load<Texture2D>("Tilesets/GrassTiles");
 
-            // === ДИНАМИЧЕСКИЙ РАСЧЁТ РАЗМЕРОВ ИЗ АТЛАСА ===
-            const int TilesPerRow = 5;  // Известно из вашего атласа
-            const int TileRows = 2;     // Известно из вашего атласа
+            // === ДИНАМИЧЕСКИЙ РАСЧЁТ РАЗМЕРОВ ТАЙЛОВ ИЗ АТЛАСА ===
+            const int TilesPerRow = 5;  // Известно из вашего атласа (512px / 5 = ~102px)
+            const int TileRows = 2;     // Известно из вашего атласа (256px / 2 = 128px)
 
-            int tileArtWidth = _grassAtlas.Width / TilesPerRow;   // 512 / 5 = 102px (или сколько у вас)
-            int tileArtHeight = _grassAtlas.Height / TileRows;    // 256 / 2 = 128px
+            int tileArtWidth = _grassAtlas.Width / TilesPerRow;
+            int tileArtHeight = _grassAtlas.Height / TileRows;
 
             Console.WriteLine($"[GameManager] Атлас: {_grassAtlas.Width}x{_grassAtlas.Height}");
             Console.WriteLine($"[GameManager] Тайл в атласе: {tileArtWidth}x{tileArtHeight}");
 
-            // Передаём ТОЛЬКО атлас и конфигурацию в World
+            // === ИНИЦИАЛИЗАЦИЯ МИРА ===
             _world?.InitializeTiles(_grassAtlas, TilesPerRow, TileRows);
 
+            // === ЗАГРУЗКА СОСТОЯНИЙ ===
             foreach (IGameState state in _states.Values)
                 state.LoadContent();
+
+            Console.WriteLine("[GameManager] Контент загружен");
         }
 
+        // === ОБНОВЛЕНИЕ ===
         public void Update(GameTime gameTime)
         {
             KeyboardState currentKeyboard = Keyboard.GetState();
@@ -121,7 +157,7 @@ namespace TalesFromTheUnderbrush
             // 4. Обновление камеры
             TestCamera?.Update(gameTime);
 
-            // 5. Отладочные команды
+            // 5. Отладочные команды (полноэкранный режим и т.д.)
             HandleDebugInput(currentKeyboard);
 
             // Сохраняем состояние для следующего кадра
@@ -155,7 +191,7 @@ namespace TalesFromTheUnderbrush
             if (scrollDelta != 0)
             {
                 float zoomDelta = scrollDelta > 0 ? GameSetting.CameraZoomSpeed : -GameSetting.CameraZoomSpeed;
-                // TestCamera.Zoom(zoomDelta); // Раскомментировать при реализации
+                TestCamera.ZoomIn(zoomDelta); // ← Используем метод из CameraBase
             }
 
             // ПКМ для перетаскивания
@@ -180,19 +216,34 @@ namespace TalesFromTheUnderbrush
             _graphicsDevice.Clear(Color.CornflowerBlue);
 
             // 2. Начало отрисовки
+            // ✅ ВАЖНО: Matrix.Identity — камера не применяется через матрицу!
+            // Камера применяется вручную через WorldToScreen() в World.Draw()
             _spriteBatch.Begin(
-       SpriteSortMode.BackToFront,
-       BlendState.AlphaBlend,
-       SamplerState.PointClamp,
-       null, null, null,
-       Matrix.Identity  // ← БЕЗ матрицы камеры!
-   );
+                SpriteSortMode.BackToFront,      // Сортировка по depth для изометрии
+                BlendState.AlphaBlend,           // Прозрачность
+                SamplerState.PointClamp,         // Пиксельная графика без сглаживания
+                null, null, null,
+                Matrix.Identity                  // ← БЕЗ матрицы камеры!
+            );
 
             // 3. Отрисовка мира с камерой
             _world.Draw(_spriteBatch, TestCamera);
 
             // 4. Завершение отрисовки
             _spriteBatch.End();
+
+            // 5. Отладочная информация (опционально)
+            if (GlobalSettings.DebugMode && GlobalSettings.ShowCameraInfo)
+            {
+                DrawDebugOverlay(gameTime);
+            }
+        }
+
+        // === ОТЛАДОЧНЫЙ СЛОЙ ===
+        private void DrawDebugOverlay(GameTime gameTime)
+        {
+            // В будущем: отрисовка FPS, позиции камеры, информации о тайлах
+            // Сейчас только вывод в консоль по F5
         }
 
         // === УПРАВЛЕНИЕ СОСТОЯНИЯМИ ===
@@ -212,23 +263,98 @@ namespace TalesFromTheUnderbrush
         // === ОТЛАДОЧНЫЕ КОМАНДЫ ===
         private void HandleDebugInput(KeyboardState keyboard)
         {
-            if (keyboard.IsKeyDown(Keys.F1) && _prevKeyboardState.IsKeyUp(Keys.F1))
-                GlobalSettings.ToggleDebugMode();
+            // === ПОЛНОЭКРАННЫЙ РЕЖИМ (F11) ===
+            if (keyboard.IsKeyDown(Keys.F11) && _prevKeyboardState.IsKeyUp(Keys.F11))
+            {
+                ToggleFullScreen();
+                return;
+            }
 
+            // === Alt+Enter для fullscreen (альтернатива) ===
+            if (keyboard.IsKeyDown(Keys.Enter) && keyboard.IsKeyDown(Keys.LeftAlt))
+            {
+                if (_prevKeyboardState.IsKeyUp(Keys.Enter))
+                {
+                    ToggleFullScreen();
+                    return;
+                }
+            }
+
+            // === Режим отладки (F1) ===
+            if (keyboard.IsKeyDown(Keys.F1) && _prevKeyboardState.IsKeyUp(Keys.F1))
+            {
+                GlobalSettings.ToggleDebugMode();
+            }
+
+            // === Информация о камере (F5) ===
             if (keyboard.IsKeyDown(Keys.F5) && _prevKeyboardState.IsKeyUp(Keys.F5))
             {
                 if (TestCamera != null)
                 {
-                    Console.WriteLine($"[CAMERA] Pos: ({TestCamera.Position.X:F1}, {TestCamera.Position.Y:F1})");
+                    Console.WriteLine($"[CAMERA] Pos: ({TestCamera.Position.X:F1}, {TestCamera.Position.Y:F1}, {TestCamera.Position.Z:F1})");
+                    Console.WriteLine($"[CAMERA] Zoom: {TestCamera.Zoom:F2}");
+                    Console.WriteLine($"[CAMERA] Viewport: {TestCamera.ViewportWidth}x{TestCamera.ViewportHeight}");
                 }
             }
 
+            // === Перезагрузка мира (F10) ===
             if (keyboard.IsKeyDown(Keys.F10) && _prevKeyboardState.IsKeyUp(Keys.F10))
             {
                 Console.WriteLine("[GameManager] Перезагрузка мира...");
                 _world?.Dispose();
                 _world = new World("TestWorld", 30, 30);
+
+                // Переинициализируем тайлы
+                if (_grassAtlas != null)
+                {
+                    const int TilesPerRow = 5;
+                    const int TileRows = 2;
+                    _world.InitializeTiles(_grassAtlas, TilesPerRow, TileRows);
+                }
             }
+
+            //// === Сброс камеры (F12) ===
+            //if (keyboard.IsKeyDown(Keys.F12) && _prevKeyboardState.IsKeyUp(Keys.F12))
+            //{
+            //    if (TestCamera != null)
+            //    {
+            //        TestCamera.SetPosition(new Vector3(0, 0, 500f));
+            //        TestCamera.SetTarget(new Vector3(0, 0, 0f));
+            //        Console.WriteLine("[GameManager] Камера сброшена");
+            //    }
+            //}
+        }
+
+        // === ПЕРЕКЛЮЧЕНИЕ ПОЛНОЭКРАННОГО РЕЖИМА ===
+        private void ToggleFullScreen()
+        {
+            bool isFullScreen = !GlobalSettings.FullScreen;
+
+            _graphics.IsFullScreen = GlobalSettings.FullScreen;
+
+            if (isFullScreen)
+            {
+                // Оконный режим
+                _graphics.PreferredBackBufferWidth = GlobalSettings.ScreenWidth;
+                _graphics.PreferredBackBufferHeight = GlobalSettings.ScreenHeight;
+            }
+            else
+            {
+                // Полноэкранный режим
+                _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+                _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+            }
+
+            _graphics.ApplyChanges();
+
+            // Обновляем камеру с новыми размерами вьюпорта
+            TestCamera?.SetViewport(
+                _graphics.PreferredBackBufferWidth,
+                _graphics.PreferredBackBufferHeight
+            );
+
+            Console.WriteLine($"[GameManager] Fullscreen: {GlobalSettings.FullScreen} | " +
+                             $"Resolution: {_graphics.PreferredBackBufferWidth}x{_graphics.PreferredBackBufferHeight}");
         }
 
         // === ОЧИСТКА РЕСУРСОВ ===

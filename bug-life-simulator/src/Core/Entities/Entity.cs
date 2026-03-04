@@ -2,43 +2,27 @@
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using TalesFromTheUnderbrush.src.GameLogic;
 using TalesFromTheUnderbrush.src.Graphics;
 using TalesFromTheUnderbrush.src.UI.Camera;
-using Rectangle = Microsoft.Xna.Framework.Rectangle;
+using RectangleF = TalesFromTheUnderbrush.src.GameRectangleF;
+using Point = Microsoft.Xna.Framework.Point;
 
 namespace TalesFromTheUnderbrush.src.Core.Entities
 {
     /// <summary>
-    /// Минимальный базовый класс для ВСЕХ объектов в игре.
-    /// Реализует IRenderable и IUpdattGameEntity для единой архитектуры.
+    /// Базовый класс для ВСЕХ сущностей в игре.
+    /// Реализует IRenderable для единой архитектуры отрисовки.
+    /// Отрисовка происходит через World.Draw() с переданной экранной позицией.
+    /// Использует сеточные координаты (GridPosition + Layer) как Tile.
     /// </summary>
-    public abstract class Entity : IDisposable, IRenderable, IUpdattGameEntity
+    public abstract class Entity : IDisposable, IRenderable
     {
         // === ID и имя ===
         private static ulong _nextId = 1;
         public ulong Id { get; }
         public string Name { get; private set; }
-        public string Tag { get; set; } = string.Empty;
-
-        // === IUpdattGameEntity ===
-        private int _updateOrder = 0;
-        public int UpdateOrder
-        {
-            get => _updateOrder;
-            set
-            {
-                if (_updateOrder != value)
-                {
-                    _updateOrder = value;
-                    UpdateOrderChanged?.Invoke(this, EventArgs.Empty);
-                }
-            }
-        }
-
-        public event EventHandler UpdateOrderChanged;
-        public void SetUpdateOrder(int order) => UpdateOrder = order;
+        public string Tag { get;private set; } = string.Empty;
 
         // === IRenderable ===
         private float _drawOrder = 0.5f;
@@ -71,7 +55,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
 
         public event EventHandler DrawOrderChanged;
         public event EventHandler VisibleChanged;
-        public void SetVisible(bool visible) => Visible = visible;
 
         // === Для обратной совместимости ===
         public virtual bool IsActive { get; set; } = true;
@@ -81,45 +64,60 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         // === Ссылка на мир ===
         public World World { get; internal set; }
 
-        // === Позиция (2D координаты + высота) ===
-        private Vector2 _position;
-        public Vector2 Position
+        // === ИГРОВЫЕ КООРДИНАТЫ (2D сетка + высота, как у Tile) ===
+        private Point _gridPosition;
+        public Point GridPosition
         {
-            get => _position;
+            get => _gridPosition;
             set
             {
-                if (_position != value)
+                if (_gridPosition != value)
                 {
-                    Vector2 oldPos = _position;
-                    _position = value;
+                    Point oldPos = _gridPosition;
+                    _gridPosition = value;
                     OnPositionChanged?.Invoke(this, oldPos, value);
                     UpdateDrawOrder();
                 }
             }
         }
 
-        private float _height;
-        public float Height
+        private int _layer = 0;
+        public int Layer
         {
-            get => _height;
+            get => _layer;
             set
             {
-                if (_height != value)
+                if (_layer != value)
                 {
-                    float oldHeight = _height;
-                    _height = Math.Max(0, value);
-                    OnHeightChanged?.Invoke(this, oldHeight, value);
+                    int oldLayer = _layer;
+                    _layer = Math.Max(0, value);
+                    OnLayerChanged?.Invoke(this, oldLayer, value);
                     UpdateDrawOrder();
                 }
             }
         }
 
-        // === Размеры ===
-        public float Width { get; set; } = 1f;
-        public float Depth { get; set; } = 1f;
+        // === Размеры сущности (в клетках сетки) ===
+        public const float BaseWidth  = 1f;
+        public const float BaseHeight = 1f;
+
+        public float Width { get; private set; } = BaseWidth;
+
+        public float Height { get; private set; } = BaseHeight;
+
+        public float Depth => _depth;
+
+        private float _depth;
+
+        // === Размеры спрайта (для отрисовки, в пикселях) ===
+        protected const int BaseSpriteWidth = 64;
+        protected const int BaseSpriteHeight = 128;
+
+        protected int SpriteWidth { get; private set; } = BaseSpriteWidth;
+        protected int SpriteHeight { get; private set; } = BaseSpriteHeight;
 
         // === Состояние ===
-        public bool IsPersistent { get; set; } = true;
+        public bool IsPersistent { get; private set; } = true;
         public bool IsDisposed { get; private set; }
 
         // === Иерархия ===
@@ -128,33 +126,94 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
 
         // === События ===
         public event Action<Entity> OnDisposed;
-        public event Action<Entity, Vector2, Vector2> OnPositionChanged;
-        public event Action<Entity, float, float> OnHeightChanged;
+        public event Action<Entity, Point, Point> OnPositionChanged;
+        public event Action<Entity, int, int> OnLayerChanged;
         public event Action<Entity> OnAddedToWorld;
         public event Action<Entity> OnRemovedFromWorld;
 
         // === Конструктор ===
-        protected Entity(string name = null)
+        protected Entity(float depth, string name = null)
         {
             Id = _nextId++;
             Name = name ?? $"Entity_{Id}";
+            _depth = depth;
 
             // Автоматически вычисляем глубину отрисовки на основе позиции
             UpdateDrawOrder();
 
             OnPositionChanged += (entity, oldPos, newPos) => UpdateDrawOrder();
-            OnHeightChanged += (entity, oldHeight, newHeight) => UpdateDrawOrder();
+            OnLayerChanged += (entity, oldLayer, newLayer) => UpdateDrawOrder();
         }
 
-        // === IRenderable.Draw — переопределяется в наследниках ===
-        public abstract void Draw(GameTime gameTime);
-        public abstract void Draw(GameTime gameTime, SpriteBatch spriteBatch);
+        // === IRenderable.Draw — ОСНОВНОЙ МЕТОД (с позицией) ===
+
+        /// <summary>
+        /// Основной метод отрисовки (из интерфейса IRenderable).
+        /// Вызывается из World.Draw() с переданной экранной позицией.
+        /// </summary>
+        /// <param name="spriteBatch">SpriteBatch для отрисовки</param>
+        /// <param name="screenPosition">Экранная позиция (центр верхней грани, вычислен через камеру)</param>
+        /// <param name="drawDepth">Глубина для сортировки SpriteBatch (0.0–0.9999)</param>
+        /// <param name="zoom">Множитель зума для масштабирования спрайта</param>
+        public virtual void Draw(
+            SpriteBatch spriteBatch,
+            Vector2 screenPosition,
+            float drawDepth,
+            float zoom = 1.0f)
+        {
+            if (!Visible || spriteBatch == null)
+                return;
+
+            // Вызываем абстрактный метод для конкретной реализации
+            DrawEntity(spriteBatch, screenPosition, drawDepth, zoom);
+        }
+
+        /// <summary>
+        /// Дополнительный метод отрисовки (для совместимости).
+        /// Используется когда позиция вычисляется внутри объекта (отладка).
+        /// </summary>
+        public virtual void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+        {
+            if (!Visible || spriteBatch == null)
+                return;
+
+            // Вычисляем позицию через камеру (если есть мир)
+            if (World != null && World.Camera != null)
+            {
+                Vector2 screenPos = World.Camera.WorldToScreen(
+                    new Vector3(GridPosition.X, GridPosition.Y, Layer)
+                );
+
+                float drawDepth = (GridPosition.X + GridPosition.Y) * 100 + Layer * 50;
+                drawDepth = MathHelper.Clamp(drawDepth / 10000f, 0f, 0.9999f);
+
+                Draw(spriteBatch, screenPos, drawDepth, 1.0f);
+            }
+        }
+
+        // === АБСТРАКТНЫЙ МЕТОД для наследников (ОБЯЗАТЕЛЬНО к реализации) ===
+
+        /// <summary>
+        /// Абстрактный метод отрисовки сущности.
+        /// Все наследники ОБЯЗАНЫ реализовать этот метод.
+        /// </summary>
+        /// <param name="spriteBatch">SpriteBatch для отрисовки</param>
+        /// <param name="screenPosition">Экранная позиция (центр верхней грани тайла, на котором стоит сущность)</param>
+        /// <param name="drawDepth">Глубина для сортировки SpriteBatch (0.0–0.9999)</param>
+        /// <param name="zoom">Множитель зума для масштабирования спрайта</param>
+        protected abstract void DrawEntity(
+            SpriteBatch spriteBatch,
+            Vector2 screenPosition,
+            float drawDepth,
+            float zoom);
 
         // === IUpdattGameEntity.Update — переопределяется в наследниках ===
         public abstract void Update(GameTime gameTime);
 
+        // === ОБЯЗАТЕЛЬНАЯ инициализация (переопределяется в наследниках) ===
+        public abstract void Initialize();
+
         // === Базовые методы ===
-        public virtual void Initialize() { }
 
         // === Публичные методы для изменения свойств ===
         public void SetName(string name)
@@ -166,20 +225,26 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
 
         public void SetTag(string tag) => Tag = tag ?? string.Empty;
 
-        public void SetPosition(Vector2 position) => Position = position;
-        public void SetPosition(float x, float y) => SetPosition(new Vector2(x, y));
+        public void SetGridPosition(Point position) => GridPosition = position;
+        public void SetGridPosition(int x, int y) => SetGridPosition(new Point(x, y));
 
-        public void SetHeight(float height) => Height = height;
+        public void SetLayer(int layer) => Layer = layer;
 
-        public void SetSize(float width, float depth)
+        public void SetSize(float width, float height = 1f)
         {
-            if (width <= 0 || depth <= 0)
-                throw new ArgumentException("Width and depth must be positive");
+            if (width <= 0 || height <= 0)
+                throw new ArgumentException("Dimensions must be positive");
             Width = width;
-            Depth = depth;
+            Height = height;
         }
 
         public void SetSize(float size) => SetSize(size, size);
+
+        public void SetSpriteSize(int width, int height)
+        {
+            SpriteWidth = width;
+            SpriteHeight = height;
+        }
 
         public void SetActive(bool active)
         {
@@ -200,7 +265,10 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
 
             Children.Add(child);
             child.Parent = this;
-            child.Position -= Position;
+            child.GridPosition = new Point(
+                child.GridPosition.X - GridPosition.X,
+                child.GridPosition.Y - GridPosition.Y
+            );
         }
 
         public void RemoveChild(Entity child)
@@ -208,7 +276,10 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             if (child != null && Children.Remove(child))
             {
                 child.Parent = null;
-                child.Position += Position;
+                child.GridPosition = new Point(
+                    child.GridPosition.X + GridPosition.X,
+                    child.GridPosition.Y + GridPosition.Y
+                );
             }
         }
 
@@ -221,72 +292,110 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         }
 
         // === Коллизии ===
-        public virtual Rectangle GetCollisionBounds() =>
-            new Rectangle((int)Position.X, (int)Position.Y, 1, 1);
+        public virtual RectangleF GetCollisionBounds()
+        {
+            return new RectangleF(
+                (int)(GridPosition.X - BaseWidth / 2),
+                (int)(GridPosition.Y - Depth / 2),
+                (int)BaseWidth,
+                (int)Depth
+            );
+        }
 
         public virtual bool CheckCollision(Entity other)
         {
             if (other == null) return false;
-            Rectangle bounds1 = GetCollisionBounds();
-            Rectangle bounds2 = other.GetCollisionBounds();
+            RectangleF bounds1 = GetCollisionBounds();
+            RectangleF bounds2 = other.GetCollisionBounds();
             return bounds1.Intersects(bounds2);
         }
 
         // === Утилиты ===
-        public Vector2 GetWorldPosition()
+        public Point GetWorldGridPosition()
         {
-            if (Parent == null) return Position;
-            return Parent.GetWorldPosition() + Position;
+            if (Parent == null) return GridPosition;
+            return new Point(
+                Parent.GetWorldGridPosition().X + GridPosition.X,
+                Parent.GetWorldGridPosition().Y + GridPosition.Y
+            );
         }
 
-        public float GetWorldHeight()
+        public int GetWorldLayer()
         {
-            if (Parent == null) return Height;
-            return Parent.GetWorldHeight() + Height;
+            if (Parent == null) return Layer;
+            return Parent.GetWorldLayer() + Layer;
         }
 
         public Vector3 GetWorldPosition3D()
         {
-            Vector2 pos2D = GetWorldPosition();
-            return new Vector3(pos2D.X, pos2D.Y, GetWorldHeight());
+            Point worldPos = GetWorldGridPosition();
+            return new Vector3(worldPos.X, worldPos.Y, GetWorldLayer());
         }
 
         public RectangleF GetBounds()
         {
-            Vector2 worldPos = GetWorldPosition();
+            Point worldPos = GetWorldGridPosition();
             return new RectangleF(
-                worldPos.X - Width / 2,
-                worldPos.Y - Depth / 2,
-                Width,
-                Depth
+                (int)(worldPos.X - BaseWidth / 2),
+                (int)(worldPos.Y - Depth / 2),
+                (int)BaseWidth,
+                (int)Depth
             );
         }
 
-        public bool IsInView(ICamera camera)
-        {
-            if (camera == null) return true;
-            RectangleF bounds = GetBounds();
-            return camera.Bounds.Contains(bounds);
-        }
-
         // === Перемещение ===
-        public void Move(Vector2 delta) => SetPosition(Position + delta);
-        public void Move(float deltaX, float deltaY) => Move(new Vector2(deltaX, deltaY));
+        public void Move(Point delta) => SetGridPosition(
+            new Point(GridPosition.X + delta.X, GridPosition.Y + delta.Y)
+        );
 
-        public void MoveToHeight(float targetHeight, float speed = 1f)
+        public void Move(int deltaX, int deltaY) => Move(new Point(deltaX, deltaY));
+
+        public void MoveToLayer(int targetLayer, int speed = 1)
         {
             if (speed <= 0)
                 throw new ArgumentException("Speed must be positive");
-            float newHeight = MathHelper.Lerp(Height, targetHeight, speed);
-            SetHeight(newHeight);
+            int newLayer = (int)MathHelper.Lerp(Layer, targetLayer, speed);
+            SetLayer(newLayer);
         }
 
         // === Обновление порядка отрисовки ===
         protected virtual void UpdateDrawOrder()
         {
-            Vector2 worldPos = GetWorldPosition();
-            // Формула: чем выше и ниже по Y, тем позже рисуется
-            DrawOrder = 0.5f + (GetWorldHeight() * 0.05f) + (worldPos.Y * 0.0001f);
+            Point worldPos = GetWorldGridPosition();
+            int worldLayer = GetWorldLayer();
+
+            // Формула: (X + Y) * 100 + Z * 50 — согласовано с Tile
+            DrawOrder = (worldPos.X + worldPos.Y) * 100 + worldLayer * 50;
+        }
+
+        // === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ОТРИСОВКИ ===
+
+        /// <summary>
+        /// Вычисляет смещение для центрирования спрайта сущности.
+        /// В отличие от тайлов, сущности центрируются по НИЖНЕЙ грани (где "ноги").
+        /// </summary>
+        /// <param name="spriteWidth">Ширина спрайта в пикселях</param>
+        /// <param name="spriteHeight">Высота спрайта в пикселях</param>
+        /// <returns>Смещение для центрирования относительно позиции "ног"</returns>
+        protected Vector2 CalculateEntityOffset(int spriteWidth, int spriteHeight)
+        {
+            // ✅ ПРАВИЛЬНОЕ ЦЕНТРИРОВАНИЕ ДЛЯ СУЩНОСТЕЙ:
+            // screenPosition — это позиция "ног" сущности на земле (центр верхней грани тайла)
+            // Спрайт должен быть центрирован по X и поднят по Y на свою высоту
+
+            return new Vector2(
+                -spriteWidth / 2f,      // Центр спрайта по X
+                -spriteHeight           // Поднять спрайт на полную высоту (ноги на земле)
+            );
+        }
+
+        /// <summary>
+        /// Вычисляет смещение для центрирования спрайта сущности с учётом зума.
+        /// </summary>
+        protected Vector2 CalculateEntityOffset(int spriteWidth, int spriteHeight, float zoom)
+        {
+            Vector2 offset = CalculateEntityOffset(spriteWidth, spriteHeight);
+            return offset * zoom;
         }
 
         // === Очистка ===
@@ -320,8 +429,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             // Очищаем все обработчики событий
             OnDisposed = null;
             OnPositionChanged = null;
-            OnHeightChanged = null;
-            UpdateOrderChanged = null;
+            OnLayerChanged = null;
             DrawOrderChanged = null;
             VisibleChanged = null;
         }
@@ -329,8 +437,8 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         // === Для отладки ===
         public override string ToString()
         {
-            Vector2 worldPos = GetWorldPosition();
-            return $"{GetType().Name} '{Name}' ({worldPos.X:F1}, {worldPos.Y:F1}, {GetWorldHeight():F1}) " +
+            Point worldPos = GetWorldGridPosition();
+            return $"{GetType().Name} '{Name}' ({worldPos.X}, {worldPos.Y}, {GetWorldLayer()}) " +
                    $"[Visible: {Visible}, DrawOrder: {DrawOrder:F3}]";
         }
     }

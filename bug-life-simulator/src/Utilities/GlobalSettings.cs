@@ -6,6 +6,7 @@ using System;
 using System.IO;
 using TalesFromTheUnderbrush.src;
 using TalesFromTheUnderbrush.src.Graphics;
+using TalesFromTheUnderbrush.src.UI.Camera;
 
 
 namespace TalesFromTheUnderbrush
@@ -326,6 +327,49 @@ namespace TalesFromTheUnderbrush
         {
             Renderer?.Dispose();
             Assets?.Dispose();
+        }
+
+        // === ИЗОМЕТРИЧЕСКИЕ УТИЛИТЫ (после существующих методов) ===
+
+        /// <summary>
+        /// Вычисляет изометрическую позицию для объекта в сетке.
+        /// </summary>
+        public static Vector2 GetIsometricGridPosition(Vector2 grid, int layer = 0)
+        {
+            float screenX = (grid.X - grid.Y) * GameSetting.WorldTileHalfWidth;
+            float screenY = (grid.X + grid.Y) * GameSetting.WorldTileHalfHeight;
+            screenY -= layer * GameSetting.IsometricLayerHeight;
+
+            return new Vector2(screenX, screenY);
+        }
+
+        /// <summary>
+        /// Вычисляет глубину отрисовки для изометрической сортировки.
+        /// </summary>
+        public static float GetIsometricDrawDepth(Vector2 grid, int layer)
+        {
+            float depth = (grid.X + grid.Y) * 1000 + layer * 5;
+            return MathHelper.Clamp(depth / 10000f, 0f, 0.9999f);
+        }
+
+        /// <summary>
+        /// Преобразует экранные координаты в изометрические координаты сетки.
+        /// </summary>
+        public static Point ScreenToIsometricGrid(Vector2 screenPos, ICamera camera = null)
+        {
+            // Учитываем камеру если передана
+            if (camera != null)
+            {
+                screenPos.X += camera.Position.X;
+                screenPos.Y += camera.Position.Y;
+            }
+
+            float worldX = (screenPos.X / GameSetting.WorldTileHalfWidth +
+                           screenPos.Y / GameSetting.WorldTileHalfHeight) / 2;
+            float worldY = (screenPos.Y / GameSetting.WorldTileHalfHeight -
+                           screenPos.X / GameSetting.WorldTileHalfWidth) / 2;
+
+            return new Point((int)worldX, (int)worldY);
         }
     }
 }

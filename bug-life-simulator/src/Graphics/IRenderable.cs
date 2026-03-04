@@ -1,117 +1,123 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Drawing;
-using TalesFromTheUnderbrush.src.UI.Camera;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
+using RectangleF = TalesFromTheUnderbrush.src.GameRectangleF;
 
 namespace TalesFromTheUnderbrush.src.Graphics
 {
     /// <summary>
-    /// Интерфейс для всех отрисовываемых объектов в игре
-    /// Унифицирует систему отрисовки через GameManager и World
+    /// Интерфейс для всех отрисовываемых объектов в игре.
+    /// Работает с переданной экранной позицией (не вычисляет сам).
     /// </summary>
     public interface IRenderable
     {
-        /// <summary>
-        /// Порядок отрисовки (меньшее значение - рисуется раньше)
-        /// </summary>
-        float DrawOrder { get; }
+        // === СВОЙСТВА ===
 
         /// <summary>
-        /// Видимость объекта
+        /// Порядок отрисовки (меньшее значение = рисуется раньше).
+        /// Используется для глобальной сортировки в World.Draw().
         /// </summary>
-        bool Visible { get; }
+        float DrawOrder { get; set; }
 
         /// <summary>
-        /// Событие изменения порядка отрисовки
+        /// Видимость объекта.
+        /// </summary>
+        bool Visible { get; set; }
+
+        // === СОБЫТИЯ ===
+
+        /// <summary>
+        /// Событие изменения порядка отрисовки.
         /// </summary>
         event EventHandler DrawOrderChanged;
 
         /// <summary>
-        /// Событие изменения видимости
+        /// Событие изменения видимости.
         /// </summary>
         event EventHandler VisibleChanged;
 
-        /// <summary>
-        /// Основной метод отрисовки
-        /// </summary>
-        /// <param name="gameTime">Игровое время</param>
-        void Draw(GameTime gameTime);
+        // === МЕТОДЫ ОТРИСОВКИ ===
 
         /// <summary>
-        /// Дополнительный метод отрисовки с SpriteBatch
-        /// Для объектов, которым нужен прямой доступ к SpriteBatch
+        /// Основной метод отрисовки.
+        /// Вызывается из World.Draw() с переданной экранной позицией.
+        /// </summary>
+        /// <param name="spriteBatch">SpriteBatch для отрисовки</param>
+        /// <param name="screenPosition">Экранная позиция (центр верхней грани, вычислен через GlobalSettings/Camera)</param>
+        /// <param name="drawDepth">Глубина для сортировки SpriteBatch (0.0–0.9999)</param>
+        /// <param name="zoom">Множитель зума для масштабирования спрайта</param>
+        void Draw(SpriteBatch spriteBatch, Vector2 screenPosition, float drawDepth, float zoom = 1.0f);
+
+        /// <summary>
+        /// Дополнительный метод отрисовки (для совместимости).
+        /// Используется когда позиция вычисляется внутри объекта (отладка).
         /// </summary>
         /// <param name="gameTime">Игровое время</param>
-        /// <param name="spriteBatch">Контекст отрисовки</param>
+        /// <param name="spriteBatch">SpriteBatch для отрисовки</param>
         void Draw(GameTime gameTime, SpriteBatch spriteBatch);
     }
 
+    // === РАСШИРЕНИЯ ИНТЕРФЕЙСА ===
+
     /// <summary>
-    /// Расширение интерфейса для объектов, требующих камеру
+    /// Для объектов, которым нужен доступ к игровому времени.
     /// </summary>
-    public interface IDrawableWithCamera : IRenderable
+    public interface IRenderableWithTime : IRenderable
     {
         /// <summary>
-        /// Отрисовка с учетом камеры
+        /// Обновление состояния перед отрисовкой.
         /// </summary>
-        void Draw(GameTime gameTime, SpriteBatch spriteBatch, ICamera camera);
+        void Update(GameTime gameTime);
     }
 
     /// <summary>
-    /// Расширение для объектов с состоянием отрисовки
+    /// Для объектов с известными границами (для culling).
     /// </summary>
-    public interface IDrawableWithState : IRenderable
+    public interface IHasBounds : IRenderable
     {
         /// <summary>
-        /// Состояние отрисовки (для оптимизации)
+        /// Получить границы объекта в мировых координатах.
         /// </summary>
-        DrawState DrawState { get; }
+        RectangleF GetBounds();
 
         /// <summary>
-        /// Обновить состояние отрисовки
+        /// Проверить, находится ли объект в области видимости.
         /// </summary>
-        void UpdateDrawState(ICamera camera);
+        bool IsInView(RectangleF viewBounds);
     }
 
     /// <summary>
-    /// Состояние отрисовки объекта
+    /// Для объектов с изменяемым порядком отрисовки.
     /// </summary>
-    public enum DrawState
+    public interface IHasDrawOrder : IRenderable
     {
         /// <summary>
-        /// Объект вне видимой области
+        /// Установить порядок отрисовки с вызовом события.
         /// </summary>
-        OutOfView,
-
-        /// <summary>
-        /// Объект частично виден
-        /// </summary>
-        PartiallyVisible,
-
-        /// <summary>
-        /// Объект полностью виден
-        /// </summary>
-        FullyVisible,
-
-        /// <summary>
-        /// Объект затенен/закрыт другими объектами
-        /// </summary>
-        Occluded,
-
-        /// <summary>
-        /// Объект требует обновления
-        /// </summary>
-        Dirty
+        void SetDrawOrder(float order);
     }
 
     /// <summary>
-    /// Вспомогательный класс для работы с IDrawable
+    /// Для объектов с изменяемой видимостью.
     /// </summary>
-    public static class DrawableExtensions
+    public interface IHasVisibility : IRenderable
     {
         /// <summary>
-        /// Сравнение по порядку отрисовки
+        /// Установить видимость с вызовом события.
+        /// </summary>
+        void SetVisible(bool visible);
+    }
+
+    // === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
+
+    /// <summary>
+    /// Расширения для работы с IRenderable.
+    /// </summary>
+    public static class RenderableExtensions
+    {
+        /// <summary>
+        /// Сравнение по порядку отрисовки (для сортировки).
         /// </summary>
         public static int CompareByDrawOrder(IRenderable a, IRenderable b)
         {
@@ -123,84 +129,48 @@ namespace TalesFromTheUnderbrush.src.Graphics
         }
 
         /// <summary>
-        /// Установить порядок отрисовки с вызовом события
+        /// Проверить, находится ли объект в области видимости камеры.
         /// </summary>
-        public static void SetDrawOrder(this IRenderable drawable, float order)
+        public static bool IsInCameraView(this IRenderable renderable, RectangleF cameraBounds)
         {
-            if (drawable is IHasDrawOrder hasDrawOrder)
+            if (!renderable.Visible) return false;
+
+            if (renderable is IHasBounds hasBounds)
             {
-                hasDrawOrder.SetDrawOrder(order);
+                return cameraBounds.Intersects(hasBounds.GetBounds());
             }
+
+            return true; // Если нет границ, считаем видимым
         }
 
         /// <summary>
-        /// Установить видимость с вызовом события
+        /// Установить видимость с вызовом события.
         /// </summary>
-        public static void SetVisible(this IRenderable drawable, bool visible)
+        public static void SetVisible(this IRenderable renderable, bool visible)
         {
-            if (drawable is IHasVisibility hasVisibility)
+            if (renderable is IHasVisibility hasVisibility)
             {
                 hasVisibility.SetVisible(visible);
             }
-        }
-
-        /// <summary>
-        /// Проверить, находится ли объект в области видимости камеры
-        /// </summary>
-        public static bool IsInCameraView(this IRenderable drawable, ICamera camera)
-        {
-            if (camera == null || !drawable.Visible) return false;
-
-            if (drawable is IHasBounds hasBounds)
+            else if (renderable.Visible != visible)
             {
-                return camera.Bounds.Equals(hasBounds.GetBounds());
+                renderable.Visible = visible;
             }
-
-            return true; // Если нет информации о границах, считаем видимым
         }
-    }
 
-    /// <summary>
-    /// Интерфейс для объектов с изменяемым порядком отрисовки
-    /// </summary>
-    public interface IHasDrawOrder : IRenderable
-    {
         /// <summary>
-        /// Установить порядок отрисовки
+        /// Установить порядок отрисовки с вызовом события.
         /// </summary>
-        void SetDrawOrder(float order);
-    }
-
-    /// <summary>
-    /// Интерфейс для объектов с изменяемой видимостью
-    /// </summary>
-    public interface IHasVisibility : IRenderable
-    {
-        /// <summary>
-        /// Установить видимость
-        /// </summary>
-        void SetVisible(bool visible);
-    }
-
-    /// <summary>
-    /// Интерфейс для объектов с известными границами
-    /// </summary>
-    public interface IHasBounds : IRenderable
-    {
-        /// <summary>
-        /// Получить границы объекта
-        /// </summary>
-        RectangleF GetBounds();
-    }
-
-    /// <summary>
-    /// Интерфейс для объектов, которым нужен SpriteBatch
-    /// </summary>
-    public interface IRequiresSpriteBatch : IRenderable
-    {
-        /// <summary>
-        /// Установить SpriteBatch для отрисовки
-        /// </summary>
-        void SetSpriteBatch(SpriteBatch spriteBatch);
+        public static void SetDrawOrder(this IRenderable renderable, float order)
+        {
+            if (renderable is IHasDrawOrder hasDrawOrder)
+            {
+                hasDrawOrder.SetDrawOrder(order);
+            }
+            else if (Math.Abs(renderable.DrawOrder - order) > float.Epsilon)
+            {
+                renderable.DrawOrder = order;
+            }
+        }
     }
 }

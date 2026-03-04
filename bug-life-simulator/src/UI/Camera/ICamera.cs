@@ -1,7 +1,8 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Drawing;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
+using RectangleF = TalesFromTheUnderbrush.src.GameRectangleF;
 using TalesFromTheUnderbrush.src.Graphics;
 using MonoGameIDrawable = Microsoft.Xna.Framework.IDrawable;
 // === ЯВНЫЕ АЛИАСЫ — КРИТИЧНО! ===
@@ -13,7 +14,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
     /// Интерфейс камеры для изометрического мира.
     /// Наследуется от MonoGame IUpdateable и IDrawable для интеграции с игровым циклом.
     /// </summary>
-    public interface ICamera : IUpdattGameEntity, IRenderable
+    public interface ICamera : IUpdattGameEntity
     {
         // === СВОЙСТВА (только чтение) ===
         new Vector3 Position { get; }

@@ -91,7 +91,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                 {
                     for (int z = 0; z < Depth; z++)
                     {
-                        var tile = _tiles[x, y, z];
+                        Tile tile = _tiles[x, y, z];
                         if (tile != null && tile.Visible)
                             yield return tile;
                     }

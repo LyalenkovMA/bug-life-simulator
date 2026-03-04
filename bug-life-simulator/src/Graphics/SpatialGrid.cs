@@ -43,7 +43,7 @@ namespace TalesFromTheUnderbrush.src
         /// <summary>
         /// Добавить объект с заданными границами
         /// </summary>
-        public void Add(T obj, RectangleF bounds)
+        public void Add(T obj, GameRectangleF bounds)
         {
             if (obj == null || _objectCells.ContainsKey(obj))
                 return;
@@ -79,7 +79,7 @@ namespace TalesFromTheUnderbrush.src
         /// <summary>
         /// Обновить позицию объекта
         /// </summary>
-        public bool Update(T obj, RectangleF newBounds)
+        public bool Update(T obj, GameRectangleF newBounds)
         {
             if (obj == null || !_objectCells.ContainsKey(obj))
                 return false;
@@ -93,7 +93,7 @@ namespace TalesFromTheUnderbrush.src
         /// <summary>
         /// Получить объекты в области
         /// </summary>
-        public List<T> Query(RectangleF area)
+        public List<T> Query(GameRectangleF area)
         {
             var result = new HashSet<T>();
             var cells = GetCellsForBounds(area);
@@ -135,7 +135,7 @@ namespace TalesFromTheUnderbrush.src
             Count = 0;
         }
 
-        private List<Point> GetCellsForBounds(RectangleF bounds)
+        private List<Point> GetCellsForBounds(GameRectangleF bounds)
         {
             int startX = Math.Max(0, (int)(bounds.Left / _cellSize));
             int endX = Math.Min(_cellsX - 1, (int)(bounds.Right / _cellSize));
@@ -162,7 +162,7 @@ namespace TalesFromTheUnderbrush.src
             throw new NotImplementedException();
         }
 
-        public IEnumerable<T> QueryEntities(Rectangle area)=> Query(new RectangleF(area.X, area.Y, area.Width, area.Height));
+        public IEnumerable<T> QueryEntities(Rectangle area)=> Query(new GameRectangleF(area.X, area.Y, area.Width, area.Height));
        
     }
 }

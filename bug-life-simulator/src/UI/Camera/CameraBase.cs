@@ -1,15 +1,11 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Drawing;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
+using RectangleF = TalesFromTheUnderbrush.src.GameRectangleF;
 
 namespace TalesFromTheUnderbrush.src.UI.Camera
 {
-    /// <summary>
-    /// Базовый класс камеры для 2D/2.5D игр.
-    /// Реализует общую логику: позиция, зум, вьюпорт, матрицы.
-    /// Наследники реализуют специфичную проекцию (изометрия, орто и т.д.)
-    /// </summary>
     public abstract class CameraBase : ICamera
     {
         // === ПРИВАТНЫЕ ПОЛЯ ===
@@ -21,7 +17,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         private int _viewportWidth;
         private int _viewportHeight;
 
-        // === ЗУМ (КРИТИЧНО ДЛЯ TESTCAMERA!) ===
+        // === ZOOM (КРИТИЧНО!) ===
         protected float _zoom = 1.0f;
         protected float _minZoom = 0.5f;
         protected float _maxZoom = 2.0f;
@@ -31,12 +27,12 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         private float _drawOrder = 0.5f;
         private bool _visible = true;
 
-        // === СОБЫТИЯ (ТОЧНЫЙ ТИП: EventHandler) ===
+        // === СОБЫТИЯ ===
         public event EventHandler UpdateOrderChanged;
         public event EventHandler DrawOrderChanged;
         public event EventHandler VisibleChanged;
 
-        // === ПУБЛИЧНЫЕ СВОЙСТВА ICamera ===
+        // === ПУБЛИЧНЫЕ СВОЙСТВА ===
         public Vector3 Position => _position;
         public Vector3 Target => _target;
         public Matrix ViewMatrix => _viewMatrix;
@@ -45,7 +41,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         public int ViewportWidth => _viewportWidth;
         public int ViewportHeight => _viewportHeight;
 
-        // === ЗУМ СВОЙСТВА (ПУБЛИЧНЫЙ ДОСТУП!) ===
+        // === ZOOM СВОЙСТВА (ПУБЛИЧНЫЙ ДОСТУП!) ===
         public float Zoom => _zoom;
         public float MinZoom => _minZoom;
         public float MaxZoom => _maxZoom;
@@ -99,10 +95,10 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
                 Vector3 topLeftWorld = ScreenToWorld(Vector2.Zero, 0);
                 Vector3 bottomRightWorld = ScreenToWorld(new Vector2(_viewportWidth, _viewportHeight), 0);
                 return new RectangleF(
-                    topLeftWorld.X,
-                    topLeftWorld.Y,
-                    bottomRightWorld.X - topLeftWorld.X,
-                    bottomRightWorld.Y - topLeftWorld.Y
+                    (int)topLeftWorld.X,
+                    (int)topLeftWorld.Y,
+                    (int)(bottomRightWorld.X - topLeftWorld.X),
+                    (int)(bottomRightWorld.Y - topLeftWorld.Y)
                 );
             }
         }
@@ -110,9 +106,6 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         // === НАСТРОЙКИ ДЛЯ НАСЛЕДНИКОВ ===
         protected float MoveSpeed { get; set; } = 5.0f;
         protected float ZoomSpeed { get; set; } = 0.1f;
-        protected float RotationSpeed { get; set; } = 0.005f;
-        protected bool UseSmoothing { get; set; } = true;
-        protected float Smoothness { get; set; } = 0.85f;
 
         // === КОНСТРУКТОР ===
         protected CameraBase(int viewportWidth, int viewportHeight)
@@ -132,19 +125,20 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         // === ИНИЦИАЛИЗАЦИЯ МАТРИЦ ===
         protected virtual void InitializeMatrices()
         {
-            // Для изометрии не используем стандартную ортографическую проекцию
-            _projectionMatrix = Matrix.Identity;
-            _viewMatrix = Matrix.Identity;
-            _viewProjectionMatrix = Matrix.Identity;
 
-            SetPosition(new Vector3(_viewportWidth / 2f, _viewportHeight / 2f, 500f));
-            SetTarget(new Vector3(_viewportWidth / 2f, _viewportHeight / 2f, 0f));
+            //_projectionMatrix = Matrix.Identity;
+            //_viewMatrix = Matrix.Identity;
+            //_viewProjectionMatrix = Matrix.Identity;
+
+            //SetPosition(new Vector3(_viewportWidth / 2f, _viewportHeight / 2f, 500f));
+            //SetTarget(new Vector3(_viewportWidth / 2f, _viewportHeight / 2f, 0f));
+            SetProjectionMatrix(Matrix.Identity);  // ✅ Переопределяет!
+            SetViewMatrix(Matrix.Identity);
         }
 
         // === ОБНОВЛЕНИЕ МАТРИЦ ===
         protected virtual void UpdateViewMatrix()
         {
-            // Для изометрии: простая матрица сдвига и зума
             _viewMatrix = Matrix.CreateTranslation(-_position.X, -_position.Y, 0) *
                          Matrix.CreateScale(_zoom, _zoom, 1);
             _viewProjectionMatrix = _viewMatrix * _projectionMatrix;
@@ -165,7 +159,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             if (updateView) UpdateViewMatrix();
         }
 
-        // === ЗУМ МЕТОДЫ (КРИТИЧНО ДЛЯ TESTCAMERA!) ===
+        // === ZOOM МЕТОДЫ (КРИТИЧНО!) ===
         protected void SetZoom(float zoom, bool updateView = true)
         {
             float newZoom = MathHelper.Clamp(zoom, _minZoom, _maxZoom);
@@ -199,7 +193,7 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
             _viewProjectionMatrix = _viewMatrix * _projectionMatrix;
         }
 
-        // === АБСТРАКТНЫЕ МЕТОДЫ (требуют реализации в наследниках) ===
+        // === АБСТРАКТНЫЕ МЕТОДЫ ===
         public abstract void Update(GameTime gameTime);
         public abstract Vector2 WorldToScreen(Vector3 worldPosition);
         public abstract Vector3 ScreenToWorld(Vector2 screenPosition, float worldZ = 0);
@@ -241,7 +235,6 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
 
         public virtual Matrix GetViewMatrix()
         {
-            // Для изометрии: простая матрица сдвига и зума
             return Matrix.CreateTranslation(-_position.X, -_position.Y, 0) *
                    Matrix.CreateScale(_zoom, _zoom, 1);
         }
@@ -250,7 +243,6 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         public void SetUpdateOrder(int order) => UpdateOrder = order;
         public void SetVisible(bool visible) => Visible = visible;
 
-        // === IRenderable.Draw — камера не рисуется, но метод должен быть ===
         public virtual void Draw(GameTime gameTime) { }
         public virtual void Draw(GameTime gameTime, SpriteBatch spriteBatch) => Draw(gameTime);
 

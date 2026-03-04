@@ -3,32 +3,27 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TalesFromTheUnderbrush.src.Graphics;
 
 namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 {
     /// <summary>
-    /// Базовый класс тайла - ОТДЕЛЬНО от Entity
-    /// Оптимизирован для статичных объектов мира
-    /// Теперь реализует IDrawable для унифицированной отрисовки
+    /// Базовый класс тайла — ОТДЕЛЬНО от Entity.
+    /// Оптимизирован для статичных объектов мира.
+    /// Хранит ТОЛЬКО игровые координаты (GridPosition + Layer).
+    /// Отрисовка происходит через World.Draw() с переданной экранной позицией.
     /// </summary>
-    public abstract class Tile : DrawableBase, IDisposable, IRequiresSpriteBatch
+    public abstract class Tile : IDisposable, IRenderable
     {
         // === ID и тип ===
+        private static ulong _nextId = 1;
         public ulong Id { get; }
-        public TileType Type { get; protected set; }
-        public string TileSet { get; protected set; } = "default";
+        public TileType Type => _type;
+        
 
-        // === Позиция в гриде ===
+        // === ИГРОВЫЕ КООРДИНАТЫ (только логика, не рендеринг!) ===
         public Point GridPosition { get; private set; }
         public int Layer { get; private set; }
-
-        // Вычисляемые мировые координаты
-        public Vector2 WorldPosition => new Vector2(
-            GridPosition.X * TileSize.Width + TileSize.Width / 2,
-            GridPosition.Y * TileSize.Height + TileSize.Height / 2
-        );
-
-        public float WorldHeight => Layer * TileSize.Height;
 
         // === Графические данные ===
         public Rectangle SourceRect { get; private set; }
@@ -50,36 +45,38 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         // === Анимация ===
         public bool IsAnimated => _animationFrames != null && _animationFrames.Count > 1;
+        
         protected SpriteBatch CurrentSpriteBatch { get; private set; }
+        
+        protected void SetType(TileType type) => _type = type;
+        
+        private TileType _type;
         private List<Rectangle> _animationFrames;
         private List<float> _animationDurations;
         private int _currentFrame;
         private float _frameTimer;
 
         // === Соседи (для оптимизации рендеринга) ===
-        public Tile[] Neighbors { get; private set; } = new Tile[6]; // 4 стороны + верх + низ
+        public Tile[] Neighbors { get; private set; } = new Tile[6];
 
         // === События ===
         public event Action<Tile> OnDestroyed;
         public event Action<Tile> OnDamaged;
         public event Action<Tile> OnChanged;
 
-        // === Статические размеры (одинаковые для всех тайлов) ===
-        public static Size TileSize => new Size(
-     (int)GameSetting.WorldTileWidth,   // 128
-     (int)GameSetting.WorldTileHeight   // 64
- );
+        protected virtual void OnChangedEvent()
+        {
+            OnChanged?.Invoke(this);
+        }
 
-        public virtual Vector2 TopFaceSize => new Vector2(GameSetting.WorldTileWidth, GameSetting.WorldTileHeight);  // Верхняя грань
-        public virtual float Height => 32f;                          // Высота куба в пикселях
-
-        // === РЕАЛИЗАЦИЯ IDRAWABLE ===
+        // === IRenderable ===
+        private float _drawOrder;
         public float DrawOrder
         {
             get => _drawOrder;
             set
             {
-                if (_drawOrder != value)
+                if (Math.Abs(_drawOrder - value) > float.Epsilon)
                 {
                     _drawOrder = value;
                     DrawOrderChanged?.Invoke(this, EventArgs.Empty);
@@ -87,66 +84,142 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        public void SetSpriteBatch(SpriteBatch spriteBatch)
+        private bool _visible = true;
+        public bool Visible
         {
-            CurrentSpriteBatch = spriteBatch;
+            get => _visible;
+            set
+            {
+                if (_visible != value)
+                {
+                    _visible = value;
+                    VisibleChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
         }
 
-        // Метод для изменения позиции ТОЛЬКО из TileGrid
-        internal void SetPositionInternal(Point gridPosition, int layer)
+        public event EventHandler DrawOrderChanged;
+        public event EventHandler VisibleChanged;
+
+        // === Статические размеры (из GameSetting) ===
+        public static Size TileSize => new Size(
+            (int)GameSetting.WorldTileWidth,    // 128
+            (int)GameSetting.WorldTileHeight    // 64
+        );
+
+        public virtual Vector2 TopFaceSize => new Vector2(
+            GameSetting.WorldTileWidth,
+            GameSetting.WorldTileHeight
+        );
+
+        public virtual float Height => 32f;
+
+        // === Конструктор ===
+        protected Tile(Point gridPosition, int layer)
         {
+            Id = _nextId++;
             GridPosition = gridPosition;
             Layer = layer;
-            OnChanged?.Invoke(this);
+            _visible = true;
+
+            // Автоматически вычисляем DrawOrder на основе положения
+            UpdateDrawOrder();
         }
 
-        // Переопределяем Draw для использования SpriteBatch
-        public override void Draw(GameTime gameTime)
+        // === IRenderable.Draw — основной метод отрисовки ===
+
+        /// <summary>
+        /// Дополнительный метод отрисовки с SpriteBatch.
+        /// </summary>
+        public virtual void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            if (!Visible || CurrentSpriteBatch == null) return;
-            Draw(gameTime, CurrentSpriteBatch);
+            if (!Visible || spriteBatch == null)
+                return;
+
+            // Вычисляем позицию через GlobalSettings
+            Vector2 screenPos = GlobalSettings.GetIsometricGridPosition(
+                new Vector2(GridPosition.X, GridPosition.Y),
+                Layer
+            );
+
+            float drawDepth = GlobalSettings.GetIsometricDrawDepth(
+                new Vector2(GridPosition.X, GridPosition.Y),
+                Layer
+            );
+
+            Draw(spriteBatch, screenPos, drawDepth, 1.0f);
         }
 
-        public override void Draw(GameTime gameTime, SpriteBatch spriteBatch)
+        /// <summary>
+        /// Отрисовка тайла с ПЕРЕДАННОЙ экранной позицией.
+        /// Вызывается из World.Draw() после вычисления позиции через камеру.
+        /// </summary>
+        /// <param name="spriteBatch">SpriteBatch для отрисовки</param>
+        /// <param name="screenPosition">Экранная позиция (центр верхней грани, вычислен через камеру)</param>
+        /// <param name="drawDepth">Глубина для сортировки (0.0–0.9999)</param>
+        /// <param name="zoom">Множитель зума (для масштабирования спрайта)</param>
+        public virtual void Draw(SpriteBatch spriteBatch, Vector2 screenPosition,
+                                 float drawDepth, float zoom = 1.0f)
         {
-            if (!Visible || spriteBatch == null) return;
-            DrawTile(spriteBatch, gameTime);
+            if (!Visible || spriteBatch == null)
+                return;
+
+            // 1. Получаем источник текстуры (динамический размер из атласа)
+            Rectangle sourceRect = GetSourceRectangle();
+
+            // 2. === АВТОМАТИЧЕСКОЕ ЦЕНТРИРОВАНИЕ ===
+            // screenPosition — это центр ВЕРХНЕЙ ГРАНИ тайла (ромб 128×64)
+            // Спрайт в атласе может включать боковые грани, поэтому нужно сместить его
+            Vector2 drawOffset = new Vector2(-sourceRect.Width / 2f,  // Центр спрайта по X
+                -sourceRect.Height + GameSetting.WorldTileHalfHeight);// Низ верхней грани по Y
+
+            // 3. Вычисляем позицию отрисовки
+            Vector2 drawPosition = screenPosition + drawOffset;
+
+            // 4. Отрисовка с ЗУМОМ
+            spriteBatch.Draw(
+                texture: GetTexture(),
+                position: drawPosition,
+                sourceRectangle: sourceRect,
+                color: TintColor,
+                rotation: Rotation,
+                origin: Vector2.Zero,
+                scale: zoom,              // ← ПРИМЕНЯЕМ ЗУМ!
+                effects: SpriteEffects.None,
+                layerDepth: drawDepth);
         }
 
-        protected abstract void DrawTile(SpriteBatch spriteBatch, GameTime gameTime);
+       
+        /// <summary>
+        /// Получить текстуру тайла (реализуется в наследниках).
+        /// </summary>
+        protected abstract Texture2D GetTexture();
+
+        /// <summary>
+        /// Получить источник текстуры (может быть переопределён в наследниках).
+        /// </summary>
+        protected virtual Rectangle GetSourceRectangle() => SourceRect;
 
         // === Публичные методы для изменения свойств ===
 
-        /// <summary>
-        /// Установить цвет тайла
-        /// </summary>
         public void SetTintColor(Color color)
         {
             TintColor = color;
             OnChanged?.Invoke(this);
         }
 
-        /// <summary>
-        /// Установить поворот тайла
-        /// </summary>
         public void SetRotation(float rotation)
         {
             Rotation = rotation;
             OnChanged?.Invoke(this);
         }
 
-        /// <summary>
-        /// Установить прямоугольник источника текстуры
-        /// </summary>
         public void SetSourceRect(Rectangle rect)
         {
             SourceRect = rect;
             OnChanged?.Invoke(this);
         }
 
-        /// <summary>
-        /// Установить свойство проходимости
-        /// </summary>
         public void SetWalkable(bool walkable)
         {
             if (IsWalkable != walkable)
@@ -156,9 +229,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        /// <summary>
-        /// Установить свойство прозрачности
-        /// </summary>
         public void SetTransparent(bool transparent)
         {
             if (IsTransparent != transparent)
@@ -168,9 +238,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        /// <summary>
-        /// Установить свойство твердости
-        /// </summary>
         public void SetSolid(bool solid)
         {
             if (IsSolid != solid)
@@ -180,9 +247,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        /// <summary>
-        /// Установить возможность строительства
-        /// </summary>
         public void SetBuildable(bool buildable)
         {
             if (IsBuildable != buildable)
@@ -192,9 +256,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        /// <summary>
-        /// Установить разрушаемость
-        /// </summary>
         public void SetDestructible(bool destructible)
         {
             if (IsDestructible != destructible)
@@ -204,13 +265,9 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        /// <summary>
-        /// Установить прочность
-        /// </summary>
         public void SetDurability(int durability)
         {
             if (durability < 0) durability = 0;
-
             if (Durability != durability)
             {
                 Durability = durability;
@@ -218,30 +275,22 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        /// <summary>
-        /// Установить максимальную прочность
-        /// </summary>
         public void SetMaxDurability(int maxDurability)
         {
-            if (maxDurability < 1) maxDurability = 1;
+            if (maxDurability < 1) 
+                maxDurability = 1;
 
             if (MaxDurability != maxDurability)
             {
                 MaxDurability = maxDurability;
 
-                // Корректируем текущую прочность, если нужно
                 if (Durability > MaxDurability)
-                {
                     Durability = MaxDurability;
-                }
 
                 OnChanged?.Invoke(this);
             }
         }
 
-        /// <summary>
-        /// Восстановить прочность до максимума
-        /// </summary>
         public void RestoreDurability()
         {
             if (Durability != MaxDurability)
@@ -251,9 +300,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        /// <summary>
-        /// Нанести урон тайлу
-        /// </summary>
         public void TakeDamage(int damage)
         {
             if (damage <= 0 || !IsDestructible) return;
@@ -262,16 +308,12 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             SetDurability(newDurability);
 
             if (newDurability <= 0)
-            {
                 Destroy();
-            }
             else
-            {
                 OnDamaged?.Invoke(this);
-            }
         }
 
-        // Protected методы для наследников
+        // === Protected методы для наследников ===
         protected void SetTintColorInternal(Color color)
         {
             TintColor = color;
@@ -308,69 +350,31 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             OnChanged?.Invoke(this);
         }
 
-        private float _drawOrder = 0;
-
-        public bool Visible
-        {
-            get => _visible;
-            set
-            {
-                if (_visible != value)
-                {
-                    _visible = value;
-                    VisibleChanged?.Invoke(this, EventArgs.Empty);
-                }
-            }
-        }
-        private bool _visible;
-
-        public event EventHandler DrawOrderChanged;
-        public event EventHandler VisibleChanged;
-
-        // === Конструктор ===
-        protected Tile(Point gridPosition, int layer)
-        {
-            Id = TileIdGenerator.Next();
-            GridPosition = gridPosition;
-            Layer = layer;
-            _visible = true;
-
-            // Автоматически вычисляем DrawOrder на основе положения
-            DrawOrder = layer * 1000 + gridPosition.Y * 10 + gridPosition.X;
-        }
-
-        // === Публичные методы ===
-
+        // === Позиция (публичный метод) ===
         public void SetPosition(Point gridPosition, int layer)
         {
             GridPosition = gridPosition;
             Layer = layer;
             OnChanged?.Invoke(this);
-
-            // Обновляем DrawOrder при изменении позиции
-            DrawOrder = layer * 1000 + gridPosition.Y * 10 + gridPosition.X;
+            UpdateDrawOrder();
         }
 
+        // === Свойства из Tiled ===
         public void SetProperties(Dictionary<string, string> properties)
         {
             Properties.Clear();
             foreach (var kvp in properties)
-            {
                 Properties[kvp.Key] = kvp.Value;
-            }
-
-            // Автоматически применяем свойства
             ApplyProperties();
         }
 
+        // === Анимация ===
         public void SetAnimation(List<Rectangle> frames, List<float> frameDurations)
         {
-            if (frames == null || frames.Count == 0)
-                return;
+            if (frames == null || frames.Count == 0) return;
 
             _animationFrames = frames;
             _animationDurations = frameDurations ?? Enumerable.Repeat(0.1f, frames.Count).ToList();
-
             _currentFrame = 0;
             _frameTimer = 0;
             SourceRect = frames[0];
@@ -387,68 +391,14 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         }
 
         // === Обновление ===
-
         public virtual void Update(GameTime gameTime)
         {
             UpdateAnimation(gameTime);
         }
 
-        /// <summary>
-        /// Отрисовка тайла с ПЕРЕДАННОЙ экранной позицией.
-        /// Вызывается из World.Draw() после вычисления позиции через камеру.
-        /// </summary>
-        public virtual void DrawAtPosition(SpriteBatch spriteBatch, Vector2 screenPosition, float drawDepth)
-        {
-            if (!Visible || spriteBatch == null)
-                return;
-
-            // 1. Получаем источник текстуры (динамический размер из атласа)
-            Rectangle sourceRect = GetSourceRectangle();
-
-            // 2. === АВТОМАТИЧЕСКОЕ ЦЕНТРИРОВАНИЕ ===
-            // Позиция screenPosition — это центр ВЕРХНЕЙ ГРАНИ тайла (ромб 128×64)
-            // Спрайт в атласе может включать боковые грани, поэтому нужно сместить его
-
-            // Вычисляем смещение относительно верхней грани:
-            // - По X: центр спрайта должен совпасть с центром верхней грани
-            // - По Y: низ верхней грани должен быть на позиции screenPosition.Y
-
-            Vector2 drawOffset = new Vector2(
-                -sourceRect.Width / 2f,                    // Центр спрайта по X
-                -sourceRect.Height + GameSetting.WorldTileHalfHeight  // Низ верхней грани по Y
-            );
-
-            // 3. Вычисляем позицию отрисовки
-            Vector2 drawPosition = screenPosition + drawOffset;
-
-            // 4. Отрисовка
-            spriteBatch.Draw(
-                texture: GetTexture(),
-                position: drawPosition,
-                sourceRectangle: sourceRect,
-                color: TintColor,
-                rotation: Rotation,
-                origin: Vector2.Zero,
-                scale: 1.0f,
-                effects: SpriteEffects.None,
-                layerDepth: drawDepth
-            );
-        }
-
-        /// <summary>
-        /// Получить текстуру тайла (реализуется в наследниках).
-        /// </summary>
-        protected virtual Texture2D GetTexture() => null;
-
-        /// <summary>
-        /// Получить источник текстуры (может быть переопределён в наследниках).
-        /// </summary>
-        protected virtual Rectangle GetSourceRectangle() => SourceRect;
-
         private void UpdateAnimation(GameTime gameTime)
         {
-            if (!IsAnimated)
-                return;
+            if (!IsAnimated) return;
 
             _frameTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
@@ -460,14 +410,10 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-
-
         // === Взаимодействие ===
-
         public virtual bool ApplyDamage(int damage)
         {
-            if (!IsDestructible)
-                return false;
+            if (!IsDestructible) return false;
 
             Durability -= damage;
             OnDamaged?.Invoke(this);
@@ -494,7 +440,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         }
 
         // === Утилиты ===
-
         public string GetProperty(string key, string defaultValue = "")
         {
             return Properties.TryGetValue(key, out string value) ? value : defaultValue;
@@ -520,12 +465,11 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         protected virtual void ApplyProperties()
         {
-            // Применяем стандартные свойства из Tiled через сеттеры
             SetWalkable(GetProperty("walkable", "true") == "true");
-            SetTransparent(GetProperty("transparent", "false") == "true");
+            SetTransparent(GetProperty("transparent", "false") == "false");
             SetSolid(GetProperty("solid", "true") == "true");
             SetBuildable(GetProperty("buildable", "true") == "true");
-            SetDestructible(GetProperty("destructible", "false") == "true");
+            SetDestructible(GetProperty("destructible", "false") == "false");
 
             if (int.TryParse(GetProperty("durability", ""), out int durability))
             {
@@ -533,10 +477,8 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                 RestoreDurability();
             }
 
-            // Применяем видимость
             Visible = GetProperty("visible", "true") == "true";
 
-            // Применяем цвет, если указан
             string colorHex = GetProperty("color", "");
             if (!string.IsNullOrEmpty(colorHex) && colorHex.StartsWith("#"))
             {
@@ -549,14 +491,19 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             }
         }
 
-        // === Очистка ===
+        // === Обновление порядка отрисовки ===
+        protected virtual void UpdateDrawOrder()
+        {
+            // Формула: (X + Y) * 100 + Z * 50
+            DrawOrder = (GridPosition.X + GridPosition.Y) * 100 + Layer * 50;
+        }
 
+        // === Очистка ===
         public virtual void Dispose()
         {
             OnDestroyed = null;
             OnDamaged = null;
             OnChanged = null;
-
             DrawOrderChanged = null;
             VisibleChanged = null;
 
@@ -577,25 +524,11 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
     }
 
     // === Вспомогательные типы ===
-
     public enum TileType
     {
-        Empty,
-        Grass,
-        Stone,
-        Water,
-        Sand,
-        Dirt,
-        Wood,
-        Brick,
-        Glass,
-        Metal,
-        Crystal,
-        Lava,
-        Ice,
-        Snow,
-        Fungus,
-        Special
+        Empty, Grass, Stone, Water, Sand, Dirt,
+        Wood, Brick, Glass, Metal, Crystal, Lava,
+        Ice, Snow, Fungus, Special
     }
 
     public struct Size

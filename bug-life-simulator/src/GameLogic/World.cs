@@ -2,7 +2,6 @@
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using TalesFromTheUnderbrush.src.Core.Entities;
 using TalesFromTheUnderbrush.src.Graphics;
@@ -12,6 +11,7 @@ using Color = Microsoft.Xna.Framework.Color;
 using IRenderable = TalesFromTheUnderbrush.src.Graphics.IRenderable;
 using Point = Microsoft.Xna.Framework.Point;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
+using RectangleF = TalesFromTheUnderbrush.src.GameRectangleF;
 
 namespace TalesFromTheUnderbrush.src.GameLogic
 {
@@ -25,6 +25,9 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         // === Основные свойства ===
         public string Name { get; private set; }
         public GameTime GameTimeWorld { get; private set; }
+
+        // === КАМЕРА (для доступа из сущностей) ===
+        public ICamera Camera { get; private set; }
 
         // === Системы ===
         private TileGrid _tileGrid;
@@ -54,12 +57,11 @@ namespace TalesFromTheUnderbrush.src.GameLogic
 
             _spatialGrid = new SpatialGrid<Entity>(worldWidthPixels, worldHeightPixels, cellSize);
             _tileGrid = new TileGrid(width, height); // Глубина 32 для вертикального перемещения
+
+            Console.WriteLine($"[World] Создан мир '{name}' {width}x{height}");
         }
 
-        /// <summary>
-        /// Инициализирует тестовые тайлы ПОСЛЕ загрузки контента.
-        /// Вызывать из GameManager.LoadContent() после загрузки атласа.
-        /// </summary>
+        // === ИНИЦИАЛИЗАЦИЯ ТАЙЛОВ ===
         /// <summary>
         /// Инициализирует тестовые тайлы ПОСЛЕ загрузки контента.
         /// Вызывать из GameManager.LoadContent() после загрузки атласа.
@@ -103,8 +105,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                         new Point(x, y),
                         0,
                         atlas,
-                        sourceRect,  // ← Динамически вычисленный!
-                        true
+                        sourceRect // ← Динамически вычисленный!
                     );
 
                     _tileGrid.SetTile(x, y, 0, tile);
@@ -124,17 +125,21 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             _entities[entity.Id] = entity;
             entity.World = this;
             EntityAdded?.Invoke(entity);
+
             Console.WriteLine($"[World] Добавлена сущность: {entity.Name} (ID: {entity.Id})");
         }
 
         public bool RemoveEntity(ulong entityId) => RemoveEntity(_entities.GetValueOrDefault(entityId));
+
         public bool RemoveEntity(Entity entity)
         {
             if (entity == null || !_entities.ContainsKey(entity.Id)) return false;
+
             _spatialGrid.Remove(entity);
             _entities.Remove(entity.Id);
             entity.World = null;
             EntityRemoved?.Invoke(entity);
+
             Console.WriteLine($"[World] Удалена сущность: {entity.Name} (ID: {entity.Id})");
             return true;
         }
@@ -142,10 +147,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         public Entity GetEntityById(ulong id) => _entities.TryGetValue(id, out Entity? entity) ? entity : null;
 
         // === Поиск сущностей ===
-        public List<Entity> GetEntitiesInArea(Rectangle area) =>
-            _spatialGrid.Query(new RectangleF(area.X, area.Y, area.Width, area.Height)).Cast<Entity>().ToList();
-
-        public List<Entity> GetEntitiesInArea(RectangleF area) =>
+        public List<Entity> GetEntitiesInArea(GameRectangleF area) =>
             _spatialGrid.Query(area).Cast<Entity>().ToList();
 
         // === Работа с тайлами ===
@@ -176,9 +178,12 @@ namespace TalesFromTheUnderbrush.src.GameLogic
         }
 
         // === ОСНОВНОЙ МЕТОД ОТРИСОВКИ ===
-        public void Draw(SpriteBatch spriteBatch, ICamera camera = null)
+        public void Draw(SpriteBatch spriteBatch, CameraBase camera = null)
         {
             if (spriteBatch == null || _tileGrid == null) return;
+
+            // Сохраняем камеру для доступа из сущностей
+            Camera = camera;
 
             if (camera != null)
             {
@@ -189,17 +194,20 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 // Режим отладки: отрисовка всего мира (только для небольших тестовых карт!)
                 DrawFullWorldDebug(spriteBatch);
             }
+
+            // Очищаем ссылку после отрисовки
+            Camera = null;
         }
 
         // === Отрисовка с камерой (основной режим) ===
-        private void DrawWithCamera(SpriteBatch spriteBatch, ICamera camera)
+        private void DrawWithCamera(SpriteBatch spriteBatch, CameraBase camera)
         {
             // 1. Определяем видимую область в мировых координатах
-            Rectangle visibleBounds = new Rectangle(
-                (int)camera.Bounds.X,
-                (int)camera.Bounds.Y,
-                (int)camera.Bounds.Width,
-                (int)camera.Bounds.Height
+            GameRectangleF visibleBounds = new GameRectangleF(
+                camera.Bounds.X,
+                camera.Bounds.Y,
+                camera.Bounds.Width,
+                camera.Bounds.Height
             );
 
             // 2. Собираем ВСЕ видимые тайлы из ВИДИМЫХ чанков
@@ -209,13 +217,12 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             foreach (TileChunk chunk in visibleChunks)
             {
                 if (chunk == null) continue;
-                // GetAllTiles() возвращает все тайлы чанка; фильтруем видимые
                 IEnumerable<Tile> tiles = chunk.GetAllTiles().Where(t => t != null && t.Visible);
                 visibleTiles.AddRange(tiles);
             }
 
             // 3. ГЛОБАЛЬНАЯ СОРТИРОВКА ПО ГЛУБИНЕ (КРИТИЧНО ДЛЯ ИЗОМЕТРИИ!)
-            // Формула: (X + Y) * 100 + Z * 50 — гарантирует правильное наложение МЕЖДУ чанками
+            // ✅ Формула: (X + Y) * 100 + Z * 50 — гарантирует правильное наложение МЕЖДУ чанками
             IEnumerable<Tile> sortedTiles = visibleTiles.OrderBy(tile =>
                 (tile.GridPosition.X + tile.GridPosition.Y) * 100 + tile.Layer * 50);
 
@@ -231,24 +238,37 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 float drawDepth = (tile.GridPosition.X + tile.GridPosition.Y) * 100 + tile.Layer * 50;
                 drawDepth = MathHelper.Clamp(drawDepth / 10000f, 0f, 0.9999f);
 
-                // 3. Вызываем отрисовку с ПЕРЕДАННОЙ позицией
-                tile.DrawAtPosition(spriteBatch, screenPos, drawDepth);
+                // 3. ✅ Вызываем отрисовку с ПЕРЕДАННОЙ позицией и ЗУМОМ
+                tile.Draw(spriteBatch, screenPos, drawDepth, camera.Zoom);
             }
+
             // 5. ОТРИСОВКА СУЩНОСТЕЙ В ВИДИМОЙ ОБЛАСТИ
-            //List<Entity> visibleEntities = GetEntitiesInArea(visibleBounds)
-            //    .Where(e => e.Visible && e is IDrawable)
-            //    .OrderBy(e => (e.Position.X + e.Position.Y) * 100 + e.Position.Z * 50); // Примерная сортировка
+            List<Entity> visibleEntities = GetEntitiesInArea(visibleBounds)
+                .Where(e => e.Visible && e is IRenderable)
+                .OrderBy(e => (e.GridPosition.X + e.GridPosition.Y) * 100 + e.Layer * 50)
+                .ToList();
 
-            //foreach (Entity entity in visibleEntities)
-            //{
-            //    if (entity is IRequiresSpriteBatch requiresBatch)
-            //        requiresBatch.SetSpriteBatch(spriteBatch);
-            //    entity.Draw(GameTimeWorld);
-            //}
+            foreach (Entity entity in visibleEntities)
+            {
+                // 1. Вычисляем изометрическую позицию через камеру
+                Vector2 screenPos = camera.WorldToScreen(
+                    new Vector3(entity.GridPosition.X, entity.GridPosition.Y, entity.Layer)
+                );
 
-            //// 6. ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
-            //if (GlobalSettings.DebugMode)
-            //    DrawDebugInfo(spriteBatch, visibleBounds, visibleTiles.Count, visibleEntities.Count());
+                // 2. Вычисляем глубину (как у тайлов)
+                float drawDepth = (entity.GridPosition.X + entity.GridPosition.Y) * 100 + entity.Layer * 50;
+                drawDepth = MathHelper.Clamp(drawDepth / 10000f, 0f, 0.9999f);
+
+                // 3. ✅ Вызываем отрисовку сущности с зумом
+                if (entity is IRenderable renderable)
+                {
+                    renderable.Draw(spriteBatch, screenPos, drawDepth, camera.Zoom);
+                }
+            }
+
+            // 6. ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
+            if (GlobalSettings.DebugMode)
+                DrawDebugInfo(spriteBatch, visibleBounds, visibleTiles.Count, visibleEntities.Count);
         }
 
         // === Отрисовка всего мира (только для отладки небольших карт!) ===
@@ -259,27 +279,54 @@ namespace TalesFromTheUnderbrush.src.GameLogic
                 (tile.GridPosition.X + tile.GridPosition.Y) * 100 + tile.Layer * 50);
 
             foreach (Tile tile in sortedTiles)
-                tile.Draw(GameTimeWorld, spriteBatch);
+            {
+                // Вычисляем позицию через GlobalSettings (без камеры)
+                Vector2 screenPos = GlobalSettings.GetIsometricGridPosition(
+                    new Vector2(tile.GridPosition.X, tile.GridPosition.Y),
+                    tile.Layer
+                );
+
+                float drawDepth = GlobalSettings.GetIsometricDrawDepth(
+                    new Vector2(tile.GridPosition.X, tile.GridPosition.Y),
+                    tile.Layer
+                );
+
+                tile.Draw(spriteBatch, screenPos, drawDepth, 1.0f);
+            }
 
             foreach (Entity entity in _entities.Values.Where(e => e.Visible && e is IRenderable))
             {
-                if (entity is IRequiresSpriteBatch requiresBatch)
-                    requiresBatch.SetSpriteBatch(spriteBatch);
-                entity.Draw(GameTimeWorld);
+                if (entity is IRenderable renderable)
+                {
+                    // Вычисляем позицию через GlobalSettings (без камеры)
+                    Vector2 screenPos = GlobalSettings.GetIsometricGridPosition(
+                        new Vector2(entity.GridPosition.X, entity.GridPosition.Y),
+                        entity.Layer
+                    );
+
+                    float drawDepth = GlobalSettings.GetIsometricDrawDepth(
+                        new Vector2(entity.GridPosition.X, entity.GridPosition.Y),
+                        entity.Layer
+                    );
+
+                    renderable.Draw(spriteBatch, screenPos, drawDepth, 1.0f);
+                }
             }
 
             if (GlobalSettings.DebugMode)
-                DrawDebugInfo(spriteBatch, new Rectangle(0, 0, 800, 600), allTiles.Count(), _entities.Values.Count(e => e.Visible));
+                DrawDebugInfo(spriteBatch, new GameRectangleF(0, 0, 800, 600),
+                    allTiles.Count(), _entities.Values.Count(e => e.Visible));
         }
 
         // === Отладочная информация ===
-        private void DrawDebugInfo(SpriteBatch spriteBatch, Rectangle visibleBounds, int tileCount, int entityCount)
+        private void DrawDebugInfo(SpriteBatch spriteBatch, GameRectangleF visibleBounds, int tileCount, int entityCount)
         {
             string debugText = $"World: {Name} | " +
                              $"Tiles: {tileCount} | " +
                              $"Entities: {entityCount} | " +
                              $"View: [{visibleBounds.X},{visibleBounds.Y}] | " +
                              $"Time: {GameTimeWorld?.TotalGameTime.TotalSeconds:F1}s";
+
             Console.WriteLine($"[DEBUG] {debugText}");
             // В будущем: отрисовка текста через SpriteFont
         }
@@ -296,6 +343,7 @@ namespace TalesFromTheUnderbrush.src.GameLogic
             _tileGrid?.Dispose();
             _tileGrid = null;
             _spatialGrid = null;
+
             Console.WriteLine($"[World] Мир '{Name}' очищен");
         }
 

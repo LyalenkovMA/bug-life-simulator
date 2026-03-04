@@ -142,14 +142,14 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// <summary>
         /// Получить все чанки в прямоугольной области (в мировых координатах)
         /// </summary>
-        public List<TileChunk> GetChunksInArea(Rectangle area)
+        public List<TileChunk> GetChunksInArea(GameRectangleF area)
         {
             List<TileChunk> chunks = new List<TileChunk>();
 
-            int startChunkX = Math.Max(0, area.X / ChunkSize);
-            int startChunkY = Math.Max(0, area.Y / ChunkSize);
-            int endChunkX = Math.Min(ChunksWidth - 1, (area.X + area.Width) / ChunkSize);
-            int endChunkY = Math.Min(ChunksHeight - 1, (area.Y + area.Height) / ChunkSize);
+            int startChunkX = (int)Math.Max(0, area.X / ChunkSize);
+            int startChunkY = (int)Math.Max(0, area.Y / ChunkSize);
+            int endChunkX = (int)Math.Min(ChunksWidth - 1, (area.X + area.Width) / ChunkSize);
+            int endChunkY = (int)Math.Min(ChunksHeight - 1, (area.Y + area.Height) / ChunkSize);
 
             for (int cx = startChunkX; cx <= endChunkX; cx++)
             {

@@ -22,14 +22,11 @@ namespace TalesFromTheUnderbrush.src
 
         public int Count { get; private set; }
 
-        public SpatialGrid(float width, float height, float cellSize)
+        public SpatialGrid(float width, float height)
         {
-            if (cellSize <= 0)
-                throw new ArgumentException("Cell size must be positive");
-
-            _cellSize = cellSize;
-            _cellsX = (int)Math.Ceiling(width / cellSize);
-            _cellsY = (int)Math.Ceiling(height / cellSize);
+            _cellSize = GameSetting.WorldTileWidth;
+            _cellsX = (int)Math.Ceiling(width / _cellSize);
+            _cellsY = (int)Math.Ceiling(height / _cellSize);
 
             _grid = new List<T>[_cellsX, _cellsY];
 
@@ -157,11 +154,6 @@ namespace TalesFromTheUnderbrush.src
 
         private bool IsValidCell(Point cell)=> cell.X >= 0 && cell.X < _cellsX && cell.Y >= 0 && cell.Y < _cellsY;
         
-        public static implicit operator SpatialGrid<T>(SpatialGrid<Entity> v)
-        {
-            throw new NotImplementedException();
-        }
-
         public IEnumerable<T> QueryEntities(Rectangle area)=> Query(new GameRectangleF(area.X, area.Y, area.Width, area.Height));
        
     }

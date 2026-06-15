@@ -142,21 +142,17 @@ namespace TalesFromTheUnderbrush.src.UI.Camera
         // === ОБРАТНАЯ ПРОЕКЦИЯ ===
         public override Vector3 ScreenToWorld(Vector2 screenPosition, float worldZ = 0)
         {
-            // 1. Обратный порядок: сначала убираем зум и вьюпорт
             float adjustedX = (screenPosition.X - ViewportWidth / 2f) / Zoom;
             float adjustedY = (screenPosition.Y - ViewportHeight / 4f) / Zoom;
 
-            // 2. Обратная изометрическая формула
-            float worldX = (adjustedX / GameSetting.WorldTileHalfWidth +
-                           adjustedY / GameSetting.WorldTileHalfHeight) / 2;
-            float worldY = (adjustedY / GameSetting.WorldTileHalfHeight -
-                           adjustedX / GameSetting.WorldTileHalfWidth) / 2;
+            float worldX = (adjustedX / GameSetting.WorldTileHalfWidth + adjustedY / GameSetting.WorldTileHalfHeight) / 2;
+            float worldY = (adjustedY / GameSetting.WorldTileHalfHeight - adjustedX / GameSetting.WorldTileHalfWidth) / 2;
 
-            // 3. Добавляем позицию камеры
-            worldX += Position.X;
-            worldY += Position.Y;
+            // Учитываем высоту: в изометрии Y на экране смещается на -Layer * Height
+            // Поэтому при обратном расчете нужно скорректировать Y
+            worldY += (worldZ * GameSetting.IsometricLayerHeight) / (2f * GameSetting.WorldTileHalfHeight);
 
-            return new Vector3(worldX, worldY, worldZ);
+            return new Vector3(worldX + Position.X, worldY + Position.Y, worldZ);
         }
 
         // === МАТРИЦА ДЛЯ SPRITEBATCH ===

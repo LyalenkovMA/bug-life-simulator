@@ -24,6 +24,8 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         public string Name { get; private set; }
         public string Tag { get;private set; } = string.Empty;
 
+        public int CurrentLayer { get; private set; } = 0;
+
         // === IRenderable ===
         private float _drawOrder = 0.5f;
         public float DrawOrder
@@ -79,6 +81,27 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
                     UpdateDrawOrder();
                 }
             }
+        }
+
+        /// <summary>
+        /// Синхронизирует слой персонажа с тайлом под ногами.
+        /// Вызывается после завершения движения.
+        /// </summary>
+        public void SyncLayerWithGround()
+        {
+            if (World?.CurrentRoom?.GetTileGrid() == null) return;
+
+            // Ищем верхний проходимый тайл на текущей позиции
+            for (int z = GameSetting.WorldChunkHeight - 1; z >= 0; z--)
+            {
+                var tile = World.CurrentRoom.GetTileGrid().GetTile(GridPosition.X, GridPosition.Y, z);
+                if (tile != null && tile.IsWalkable)
+                {
+                    CurrentLayer = z;
+                    return;
+                }
+            }
+            CurrentLayer = 0; // Откат к земле, если ничего не найдено
         }
 
         private int _layer = 0;

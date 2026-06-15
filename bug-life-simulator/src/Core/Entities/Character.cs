@@ -116,7 +116,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             {
                 case ActionType.Move:
                     // Запускаем плавное движение, уже реализованное в Entity
-                    MoveTo(_context.TargetGrid);
                     break;
                 case ActionType.Attack:
                     // PlayAnimation("Attack");
@@ -130,7 +129,6 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
             if (_context.Action == ActionType.Move)
             {
                 GridPosition = _context.TargetGrid;
-                SetVisualPosition(new Vector2(GridPosition.X, GridPosition.Y));
             }
 
             TransitionToState(CharacterState.Idle);
@@ -143,8 +141,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
         {
             if (CurrentState == CharacterState.Idle) return;
             // Отменяем движение, если оно запущено
-            if (IsMoving) { IsMoving = false; }
-            TransitionToState(CharacterState.Interrupted);
+             TransitionToState(CharacterState.Interrupted);
         }
 
         // === ОТРИСОВКА (Заглушка) ===
@@ -164,7 +161,7 @@ namespace TalesFromTheUnderbrush.src.Core.Entities
                 CharacterState.Executing => Color.Green,
                 _ => Color.Red
             };
-            spriteBatch.Draw(Texture2D.White, rect, debugColor * 0.7f);
+            //spriteBatch.Draw(Texture2D.White, rect, debugColor * 0.7f);
         }
 
         public override void Initialize()

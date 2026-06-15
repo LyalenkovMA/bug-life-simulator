@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Point = Microsoft.Xna.Framework.Point;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
@@ -34,12 +35,12 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         // === КОНСТРУКТОР ===
         public TileGrid(int width, int height)
         {
-            if (width <= 0 || height <= 0 || GameSetting.WorldChunkHeight <= 0 || GameSetting.WorldChunkSize <= 0)
+            if (width <= 0 || height <= 0 || GameSetting.WorldChunkSize <= 0 || GameSetting.WorldChunkSize <= 0)
                 throw new ArgumentException("Dimensions must be positive");
 
             Width = width;
             Height = height;
-            Depth = GameSetting.WorldChunkHeight;
+            Depth = GameSetting.WorldChunkSize;
             ChunkSize = GameSetting.WorldChunkSize;
 
             // Рассчитываем количество чанков
@@ -55,11 +56,11 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
                     int chunkWidth = Math.Min(GameSetting.WorldChunkSize, width - x * GameSetting.WorldChunkSize);
                     int chunkHeight = Math.Min(GameSetting.WorldChunkSize, height - y * GameSetting.WorldChunkSize);
                     // Глубина чанка = глубина всего грида (для простоты)
-                    _chunks[x, y] = new TileChunk(new Point(x, y), chunkWidth, chunkHeight, GameSetting.WorldChunkHeight);
+                    _chunks[x, y] = new TileChunk(new Point(x, y), chunkWidth, chunkHeight, GameSetting.WorldChunkSize);
                 }
             }
 
-            Console.WriteLine($"[TileGrid] Создана сетка {width}x{height}x{GameSetting.WorldChunkHeight}, чанков: {chunksX}x{chunksY}");
+            Console.WriteLine($"[TileGrid] Создана сетка {width}x{height}x{GameSetting.WorldChunkSize}, чанков: {chunksX}x{chunksY}");
         }
 
         // === УПРАВЛЕНИЕ ТАЙЛАМИ ===
@@ -88,11 +89,8 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
             // Устанавливаем новый тайл
             chunk.SetTile(localX, localY, z, tile);
-            if (tile != null)
-            {
-                TileAdded?.Invoke(tile);
-                TotalTiles++;
-            }
+            if (tile != null) 
+                tile.SetPosition(new Point(x, y), z);
 
             GridChanged?.Invoke(this);
             return true;
@@ -206,12 +204,29 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         }
 
         /// <summary>
-        /// Проверить проходимость клетки (верхний тайл)
+        /// Проверка проходимости на КОНКРЕТНОМ слое (Layer).
+        /// Если слой не указан, проверяется верхний тайл (как раньше).
         /// </summary>
-        public bool IsWalkable(int x, int y)
+        public bool IsWalkable(int x, int y, int targetLayer = -1)
         {
-            Tile tile = GetTopTile(x, y);
-            return tile != null && tile.IsWalkable;
+            if (!IsInBounds(x, y, targetLayer >= 0 ? targetLayer : 0)) return false;
+
+            if (targetLayer >= 0)
+            {
+                // Явная проверка слоя
+                Tile tile = GetTile(x, y, targetLayer);
+                return tile != null && tile.IsWalkable;
+            }
+            else
+            {
+                // Обратная совместимость: ищем верхний проходимый тайл
+                for (int z = Depth - 1; z >= 0; z--)
+                {
+                    Tile tile = GetTile(x, y, z);
+                    if (tile != null && tile.IsWalkable) return true;
+                }
+                return false;
+            }
         }
 
         /// <summary>
@@ -237,10 +252,8 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         /// </summary>
         public void Update(GameTime gameTime)
         {
-            foreach (Tile tile in GetAllTiles())
-            {
+            foreach (Tile tile in GetAllTiles().ToList()) // .ToList() создаёт копию
                 tile?.Update(gameTime);
-            }
         }
 
         // === ОЧИСТКА ===

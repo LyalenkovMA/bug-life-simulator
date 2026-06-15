@@ -28,8 +28,7 @@ namespace TalesFromTheUnderbrush
             // Инициализация глобальных сервисов (через GlobalSettings)
             _gameManager = new GameManager(_graphics, Content);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
-            GlobalSettings.Initialize(Content, GraphicsDevice);
-
+            
             _gameManager.Initialize(GraphicsDevice,_spriteBatch);
             // Создание менеджера игры
 
@@ -69,7 +68,6 @@ namespace TalesFromTheUnderbrush
             if (disposing)
             {
                 _gameManager?.Dispose();
-                GlobalSettings.Dispose();
             }
             base.Dispose(disposing);
         }

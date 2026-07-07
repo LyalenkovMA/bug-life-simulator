@@ -5,8 +5,12 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 {
     public class StairTile : Tile
     {
+        public override float Elevation { get; set;}
+        public override bool AllowsZTransition { get; set; }
+
         private readonly Texture2D _texture;
         private readonly Rectangle _sourceRect;
+        
         public GridDirection Direction { get; }
 
         public StairTile(Point gridPosition, int layer, Texture2D texture, Rectangle sourceRect, GridDirection direction)
@@ -15,6 +19,8 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             _texture = texture;
             _sourceRect = sourceRect;
             Direction = direction;
+            Elevation = 0.5f;
+            AllowsZTransition = true;
             SetType(TileType.Wood); // Или Stone
             SetWalkable(true);
             SetSolid(true);

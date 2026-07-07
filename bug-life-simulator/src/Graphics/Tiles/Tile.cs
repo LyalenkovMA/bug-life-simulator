@@ -15,6 +15,23 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
     /// </summary>
     public abstract class Tile : IDisposable, IRenderable
     {
+        // ... существующие поля ...
+
+        /// <summary>
+        /// Логическая высота тайла (0.0, 0.5, 1.0)
+        /// </summary>
+        public virtual float Elevation { get; set; } = 0f;
+
+        /// <summary>
+        /// Разрешает ли тайл переход между Z-слоями (лестницы, лианы)
+        /// </summary>
+        public virtual bool AllowsZTransition { get; set; } = false;
+
+        /// <summary>
+        /// Целевой слой для перехода (если AllowsZTransition = true)
+        /// </summary>
+        public virtual int TargetLayer { get; set; }
+
         // === ID и тип ===
         private static ulong _nextId = 1;
         public ulong Id { get; }
@@ -170,6 +187,9 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
 
         // === Абстрактные методы для наследников ===
         protected abstract Texture2D GetTexture();
+
+        protected virtual Vector2 CalculateTileOffset(Rectangle sourceRect, float zoom) => new Vector2(0, 0);
+
         protected virtual Rectangle GetSourceRectangle() => SourceRect;
 
         // === Публичные методы для изменения свойств ===

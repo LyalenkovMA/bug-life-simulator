@@ -10,46 +10,50 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
     /// <summary>
     /// Базовый класс тайла — ОТДЕЛЬНО от Entity.
     /// Оптимизирован для статичных объектов мира.
-    /// Хранит ТОЛЬКО игровые координаты (GridPosition + Layer).
+    /// Хранит ТОЛЬКО игровые координаты (GridPosition + Layer) и высоту (Elevation).
     /// Отрисовка происходит через World.Draw() с переданной экранной позицией и глубиной.
     /// </summary>
     public abstract class Tile : IDisposable, IRenderable
     {
-        // ... существующие поля ...
-
-        /// <summary>
-        /// Логическая высота тайла (0.0, 0.5, 1.0)
-        /// </summary>
-        public virtual float Elevation { get; set; } = 0f;
-
-        /// <summary>
-        /// Разрешает ли тайл переход между Z-слоями (лестницы, лианы)
-        /// </summary>
-        public virtual bool AllowsZTransition { get; set; } = false;
-
-        /// <summary>
-        /// Целевой слой для перехода (если AllowsZTransition = true)
-        /// </summary>
-        public virtual int TargetLayer { get; set; }
-
         // === ID и тип ===
         private static ulong _nextId = 1;
         public ulong Id { get; }
         public TileType Type => _type;
+        private TileType _type;
 
         // === ИГРОВЫЕ КООРДИНАТЫ (только логика, не рендеринг!) ===
         public Point GridPosition { get; private set; }
 
         /// <summary>
-        /// Визуальный слой (Z). Используется для сортировки отрисовки (ветки над землей и т.д.).
+        /// Визуальный слой (Z). Используется для сортировки отрисовки (ветки над землёй и т.д.).
         /// </summary>
         public int Layer { get; private set; }
+
+        /// <summary>
+        /// Логическая высота тайла относительно базового уровня (0.0).
+        /// 0.0 = плоская земля
+        /// 0.1 = небольшой выступ/корень
+        /// 0.5 = полублок, скос или ступенька
+        /// 1.0 = полный блок (стена, платформа)
+        /// Переопределяется в наследниках (FullBlockTile, SlopeTile и т.д.)
+        /// </summary>
+        public virtual float Elevation { get; set; } = 0f;
+
+        /// <summary>
+        /// Разрешает ли тайл вертикальный переход (лестница, лиана, люк).
+        /// Переопределяется в StairTile.
+        /// </summary>
+        public virtual bool AllowsZTransition { get; set; } = false;
+
+        /// <summary>
+        /// Целевой слой для вертикального перехода (если AllowsZTransition = true).
+        /// </summary>
+        public virtual int TargetLayer { get; set; }
 
         // === Графические данные ===
         public Rectangle SourceRect { get; private set; }
         public Color TintColor { get; private set; } = Color.White;
         public float Rotation { get; private set; }
-        public float Elevation { get;private set; }
 
         // === Свойства для геймплея ===
         public bool IsWalkable { get; private set; } = true;
@@ -57,7 +61,6 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public bool IsSolid { get; private set; } = true;
         public bool IsBuildable { get; private set; } = true;
         public bool IsDestructible { get; private set; } = false;
-
         public int Durability { get; private set; } = 100;
         public int MaxDurability { get; private set; } = 100;
 
@@ -67,9 +70,8 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         // === Анимация ===
         public bool IsAnimated => _animationFrames != null && _animationFrames.Count > 1;
         protected SpriteBatch CurrentSpriteBatch { get; private set; }
-
         protected void SetType(TileType type) => _type = type;
-        private TileType _type;
+
         private List<Rectangle> _animationFrames;
         private List<float> _animationDurations;
         private int _currentFrame;
@@ -82,10 +84,9 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public event Action<Tile> OnDestroyed;
         public event Action<Tile> OnDamaged;
         public event Action<Tile> OnChanged;
-
         protected virtual void OnChangedEvent() => OnChanged?.Invoke(this);
 
-        // === IRenderable (Свойства оставлены для совместимости с интерфейсом, 
+        // === IRenderable (Свойства оставлены для совместимости с интерфейсом,
         // но их значение теперь пассивно и управляется извне при необходимости) ===
         private float _drawOrder;
         public float DrawOrder
@@ -124,15 +125,13 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public virtual float Height => 32f;
 
         // === Конструктор ===
-        protected Tile(Point gridPosition, int layer, float elevation = 0)
+        protected Tile(Point gridPosition, int layer)
         {
             Id = _nextId++;
             GridPosition = gridPosition;
             Layer = layer;
             _visible = true;
-            Elevation = elevation;
-
-            // DrawOrder больше не вычисляется здесь. 
+            // DrawOrder больше не вычисляется здесь.
             // Глубина отрисовки рассчитывается динамически в World.Draw() через GlobalSettings.GetIsometricDrawDepth
         }
 
@@ -140,11 +139,9 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
         public virtual void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
             if (!Visible || spriteBatch == null) return;
-
             // Вычисляем позицию через GlobalSettings (для отладки или автономной отрисовки)
             Vector2 screenPos = GlobalSettings.GetIsometricGridPosition(new Vector2(GridPosition.X, GridPosition.Y), Layer);
             float drawDepth = GlobalSettings.GetIsometricDrawDepth(new Vector2(GridPosition.X, GridPosition.Y), Layer);
-
             Draw(spriteBatch, screenPos, drawDepth, 1.0f);
         }
 
@@ -159,17 +156,9 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             // 1. Получаем источник текстуры
             Rectangle sourceRect = GetSourceRectangle();
 
-            // 2. АВТОМАТИЧЕСКОЕ ЦЕНТРИРОВАНИЕ
-            Vector2 drawOffset = new Vector2(
-                -sourceRect.Width / 2f,  // Центр спрайта по X
-                -sourceRect.Height + GameSetting.WorldTileHalfHeight // Низ верхней грани по Y
-            );
-
-            // Корректировка по высоте: каждый слой смещает спрайт вверх по экрану
-            float layerOffsetY = -Layer * GameSetting.VisualLayerStep;
-            drawOffset += new Vector2(0, layerOffsetY);
-
-            Vector2 drawPosition = screenPosition + (drawOffset * zoom);
+            // 2. АВТОМАТИЧЕСКОЕ ЦЕНТРИРОВАНИЕ с учётом Elevation
+            Vector2 drawOffset = CalculateTileOffset(sourceRect, zoom);
+            Vector2 drawPosition = screenPosition + drawOffset;
 
             // 3. Отрисовка с ЗУМОМ и переданной глубиной (drawDepth)
             spriteBatch.Draw(
@@ -185,11 +174,29 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             );
         }
 
+        /// <summary>
+        /// Вычисляет смещение для центрирования тайла с учётом высоты (Elevation).
+        /// Может быть переопределён в наследниках (SlopeTile, StairTile).
+        /// </summary>
+        protected virtual Vector2 CalculateTileOffset(Rectangle sourceRect, float zoom)
+        {
+            Vector2 baseOffset = new Vector2(
+                -sourceRect.Width / 2f,                           // Центр спрайта по X
+                -sourceRect.Height + GameSetting.WorldTileHalfHeight // Низ верхней грани по Y
+            );
+
+            // Корректировка по высоте: каждый слой смещает спрайт вверх по экрану
+            float layerOffsetY = -Layer * GameSetting.VisualLayerStep;
+
+            // 🔥 КРИТИЧНО: Учитываем дробную высоту (Elevation)
+            // Каждый 1.0 Elevation поднимает тайл на высоту одного блока (WorldTileHeight)
+            float elevationOffsetY = -Elevation * GameSetting.WorldTileHeight;
+
+            return (baseOffset + new Vector2(0, layerOffsetY + elevationOffsetY)) * zoom;
+        }
+
         // === Абстрактные методы для наследников ===
         protected abstract Texture2D GetTexture();
-
-        protected virtual Vector2 CalculateTileOffset(Rectangle sourceRect, float zoom) => new Vector2(0, 0);
-
         protected virtual Rectangle GetSourceRectangle() => SourceRect;
 
         // === Публичные методы для изменения свойств ===
@@ -354,7 +361,7 @@ namespace TalesFromTheUnderbrush.src.Graphics.Tiles
             CurrentSpriteBatch = null;
         }
 
-        public override string ToString() => $"{Type} at ({GridPosition.X}, {GridPosition.Y}, {Layer}) [Visible: {Visible}]";
+        public override string ToString() => $"{Type} at ({GridPosition.X}, {GridPosition.Y}, {Layer}) E:{Elevation:F2} [Visible: {Visible}]";
     }
 
     // === Вспомогательные типы ===
